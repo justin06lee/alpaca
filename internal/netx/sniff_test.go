@@ -353,9 +353,9 @@ func TestClassifyIP(t *testing.T) {
 		{"192.168.1.10", ReachLAN},
 		{"10.4.4.4", ReachLAN},
 		{"172.20.0.9", ReachLAN},
-		{"fd7a:115c:a1e0::1", ReachLAN},     // unique-local v6
-		{"100.98.21.63", ReachTailnet},      // tailscale CGNAT
-		{"2600:1702:891b::30", ReachGlobal}, // v6 GUA — routable, must not be plain http
+		{"fd7a:115c:a1e0::1", ReachLAN},    // unique-local v6
+		{"100.100.42.7", ReachTailnet},     // tailscale CGNAT
+		{"2001:db8:1234::30", ReachGlobal}, // v6 GUA — routable, must not be plain http
 		{"8.8.8.8", ReachGlobal},
 	}
 	for _, tc := range cases {

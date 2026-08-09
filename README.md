@@ -11,14 +11,14 @@ One static binary plays both parts: `alpaca serve` on the machine with the GPU,
   alpaca  serving llama3.2:latest · ollama 0.32.5 · port 8080
 
   reachable at
-    ✓ lan        192.168.1.168:8080                             same network · plain http, fastest
-    ✓ lan        [fd7a:115c:a1e0::2833:1540]:8080               same network · plain http, fastest
-    ✓ tailscale  100.98.21.63:8080                              anywhere on your tailnet · encrypted by wireguard
-    ✓ internet   [2600:1702:891b:aa00:842:dffb:d410:52bb]:8080  direct ipv6 — may need a firewall rule · tls
+    ✓ lan        192.168.1.20:8080                 same network · plain http, fastest
+    ✓ lan        [fd7a:115c:a1e0::1234:5678]:8080  same network · plain http, fastest
+    ✓ tailscale  100.100.42.7:8080                 anywhere on your tailnet · encrypted by wireguard
+    ✓ internet   [2001:db8:1234:5678::1]:8080      direct ipv6 — may need a firewall rule · tls
 
   run this on every other machine
 
-    alpaca link alpaca1:eyJpIjoiYjBlYzQ1YTkzMmRjIiwibiI6Ik1hY0Jvb2tBaXIi…
+    alpaca link alpaca1:eyJpIjoiYTFiMmMzZDRlNWY2IiwibiI6IndvcmtzaG9wIiwi…
 ```
 
 
@@ -121,7 +121,7 @@ The gateway speaks the OpenAI API, so most existing tooling works by pointing a
 base URL at it:
 
 ```sh
-curl http://192.168.1.168:8080/v1/chat/completions \
+curl http://192.168.1.20:8080/v1/chat/completions \
   -H "Authorization: Bearer alp_..." \
   -H "Content-Type: application/json" \
   -d '{"model":"llama3.2:latest","messages":[{"role":"user","content":"hello"}]}'
@@ -130,7 +130,7 @@ curl http://192.168.1.168:8080/v1/chat/completions \
 ```python
 from openai import OpenAI
 
-client = OpenAI(base_url="http://192.168.1.168:8080/v1", api_key="alp_...")
+client = OpenAI(base_url="http://192.168.1.20:8080/v1", api_key="alp_...")
 client.chat.completions.create(
     model="llama3.2:latest",
     messages=[{"role": "user", "content": "hello"}],

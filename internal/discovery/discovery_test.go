@@ -17,8 +17,8 @@ func TestFromEntryParsesTXTRecords(t *testing.T) {
 	entry.Instance = "workshop"
 	entry.AddrIPv4 = append(entry.AddrIPv4, parseIP(t, "192.168.1.20"))
 	entry.AddrIPv6 = append(entry.AddrIPv6,
-		parseIP(t, "fe80::1"),                 // link-local: unusable without a zone
-		parseIP(t, "2600:1702:891b:aa00::30"), // global: fine
+		parseIP(t, "fe80::1"),                // link-local: unusable without a zone
+		parseIP(t, "2001:db8:1234:5678::30"), // global: fine
 	)
 
 	got := fromEntry(entry)
@@ -27,7 +27,7 @@ func TestFromEntryParsesTXTRecords(t *testing.T) {
 		t.Errorf("parsed = %+v, want the TXT values", got)
 	}
 	// IPv4 first, link-local v6 dropped.
-	want := []string{"192.168.1.20:8080", "[2600:1702:891b:aa00::30]:8080"}
+	want := []string{"192.168.1.20:8080", "[2001:db8:1234:5678::30]:8080"}
 	if len(got.Endpoints) != len(want) {
 		t.Fatalf("endpoints = %v, want %v", got.Endpoints, want)
 	}

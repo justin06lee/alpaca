@@ -17,7 +17,7 @@ func TestReachableRejectsUnroutableAddresses(t *testing.T) {
 		why  string
 	}{
 		{"203.0.113.9", true, "ordinary public v4"},
-		{"2600:1702:891b:aa00::30", true, "global v6"},
+		{"2001:db8:1234:5678::30", true, "global v6"},
 		{"192.168.1.1", false, "rfc1918 — double NAT"},
 		{"10.0.0.1", false, "rfc1918"},
 		{"172.16.5.4", false, "rfc1918"},
@@ -56,8 +56,8 @@ func TestReachableHandlesNilIP(t *testing.T) {
 }
 
 func TestEndpointFormatsIPv6WithBrackets(t *testing.T) {
-	m := &Mapping{ExternalIP: net.ParseIP("2600:1702::30"), ExternalPort: 8080}
-	if got := m.Endpoint(); got != "[2600:1702::30]:8080" {
+	m := &Mapping{ExternalIP: net.ParseIP("2001:db8::30"), ExternalPort: 8080}
+	if got := m.Endpoint(); got != "[2001:db8::30]:8080" {
 		t.Errorf("Endpoint() = %q, want brackets around the v6 literal", got)
 	}
 }
