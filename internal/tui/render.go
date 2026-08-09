@@ -187,16 +187,32 @@ func (m *Model) cacheLast() {
 	m.rendered = append(m.rendered, m.renderMessage(m.sess.Messages[idx]))
 }
 
+// cell renders a key and its description padded to a fixed column width.
+//
+// The padding is computed from the unstyled lengths: styled strings carry ANSI
+// escapes, so a %-*s verb would count those invisible bytes and misalign every
+// column.
+func cell(key, desc string, keyWidth, descWidth int) string {
+	pad := func(n int) string {
+		if n < 1 {
+			n = 1
+		}
+		return strings.Repeat(" ", n)
+	}
+	return styleStatusKey.Render(key) + pad(keyWidth-len(key)) +
+		styleMuted.Render(desc) + pad(descWidth-len(desc))
+}
+
 func (m *Model) welcome() string {
+	const keyCol, descCol = 9, 18
+
 	lines := []string{
-		styleMuted.Render("Type a message and press " + styleStatusKey.Render("enter") + " to send."),
+		styleMuted.Render("Type a message and press ") + styleStatusKey.Render("enter") +
+			styleMuted.Render(" to send."),
 		"",
-		styleMuted.Render("  " + styleStatusKey.Render("ctrl+j") + "   newline          " +
-			styleStatusKey.Render("ctrl+p") + "  switch model"),
-		styleMuted.Render("  " + styleStatusKey.Render("esc") + "      stop generating   " +
-			styleStatusKey.Render("ctrl+s") + "  sessions"),
-		styleMuted.Render("  " + styleStatusKey.Render("ctrl+n") + "   new chat         " +
-			styleStatusKey.Render("?") + "       all keys"),
+		"  " + cell("ctrl+j", "newline", keyCol, descCol) + cell("ctrl+p", "switch model", keyCol, 0),
+		"  " + cell("esc", "stop generating", keyCol, descCol) + cell("ctrl+s", "saved chats", keyCol, 0),
+		"  " + cell("ctrl+n", "new chat", keyCol, descCol) + cell("?", "all keys", keyCol, 0),
 		"",
 		styleMuted.Render("Slash commands: /model /new /sessions /system /retry /copy /help"),
 	}
