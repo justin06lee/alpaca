@@ -297,11 +297,10 @@ func TestIdentityPersistsAcrossLoads(t *testing.T) {
 }
 
 func TestLocalHostPortsAreDialable(t *testing.T) {
-	ports := LocalHostPorts("8080")
-	for _, hp := range ports {
+	for _, hp := range append(TrustedHostPorts("8080"), GlobalHostPorts("8080")...) {
 		host, port, err := net.SplitHostPort(hp)
 		if err != nil {
-			t.Errorf("LocalHostPorts produced %q, which is not a host:port: %v", hp, err)
+			t.Errorf("produced %q, which is not a host:port: %v", hp, err)
 			continue
 		}
 		if port != "8080" {
@@ -311,5 +310,62 @@ func TestLocalHostPortsAreDialable(t *testing.T) {
 			t.Errorf("%q has host %q, which is not an IP", hp, host)
 		}
 	}
-	t.Logf("local endpoints: %v", ports)
+	t.Logf("trusted: %v", TrustedHostPorts("8080"))
+	t.Logf("global:  %v", GlobalHostPorts("8080"))
+}
+
+// The split between these two lists is a security boundary, not a cosmetic
+// one: anything in the trusted list is offered as a plain-HTTP route, so a
+// globally routable address appearing there would send the API key across the
+// internet in cleartext.
+func TestTrustedAndGlobalAreDisjointAndCorrect(t *testing.T) {
+	trusted := TrustedHostPorts("8080")
+	global := GlobalHostPorts("8080")
+
+	inGlobal := map[string]bool{}
+	for _, hp := range global {
+		inGlobal[hp] = true
+	}
+
+	for _, hp := range trusted {
+		if inGlobal[hp] {
+			t.Errorf("%q appears in both lists", hp)
+		}
+		host, _, _ := net.SplitHostPort(hp)
+		ip := net.ParseIP(host)
+		if ClassifyIP(ip) == ReachGlobal {
+			t.Errorf("%q is internet-routable but was offered as a plain-HTTP route", hp)
+		}
+	}
+	for _, hp := range global {
+		host, _, _ := net.SplitHostPort(hp)
+		if ClassifyIP(net.ParseIP(host)) != ReachGlobal {
+			t.Errorf("%q is not internet-routable but was put in the global list", hp)
+		}
+	}
+}
+
+func TestClassifyIP(t *testing.T) {
+	cases := []struct {
+		ip   string
+		want Reachability
+	}{
+		{"192.168.1.10", ReachLAN},
+		{"10.4.4.4", ReachLAN},
+		{"172.20.0.9", ReachLAN},
+		{"fd7a:115c:a1e0::1", ReachLAN},     // unique-local v6
+		{"100.98.21.63", ReachTailnet},      // tailscale CGNAT
+		{"2600:1702:891b::30", ReachGlobal}, // v6 GUA — routable, must not be plain http
+		{"8.8.8.8", ReachGlobal},
+	}
+	for _, tc := range cases {
+		t.Run(tc.ip, func(t *testing.T) {
+			if got := ClassifyIP(net.ParseIP(tc.ip)); got != tc.want {
+				t.Errorf("ClassifyIP(%s) = %v, want %v", tc.ip, got, tc.want)
+			}
+			if tc.want == ReachGlobal && ClassifyIP(net.ParseIP(tc.ip)).Trusted() {
+				t.Errorf("%s is routable from the internet but reports as trusted", tc.ip)
+			}
+		})
+	}
 }
