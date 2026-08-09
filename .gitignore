@@ -1,0 +1,19 @@
+# Build output
+/alpaca
+/dist/
+*.exe
+*.test
+
+# Go
+vendor/
+
+# Local state that must never be committed (API keys, TLS private keys, sessions)
+/.alpaca/
+*.pem
+*.key
+
+# OS / editor junk
+.DS_Store
+.idea/
+.vscode/
+*.swp
