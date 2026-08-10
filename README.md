@@ -1,26 +1,15 @@
-# alpaca
+<div align="center">
 
-Self-host a model with Ollama, get a real API for it, and use it from every
-other machine you own — through a terminal chat interface or anything that
-speaks the OpenAI protocol.
+<img src="assets/banner.svg" alt="alpaca" width="820">
 
-One static binary plays both parts: `alpaca serve` on the machine with the GPU,
-`alpaca chat` everywhere else.
+<h1>alpaca</h1>
 
-```
-  alpaca  serving llama3.2:latest · ollama 0.32.5 · port 8080
+<p>
+Self-host a model with Ollama and reach it from every machine you own.<br>
+One binary serves an OpenAI-compatible API — the client finds it on its own.
+</p>
 
-  reachable at
-    ✓ lan        192.168.1.20:8080                 same network · plain http, fastest
-    ✓ lan        [fd7a:115c:a1e0::1234:5678]:8080  same network · plain http, fastest
-    ✓ tailscale  100.100.42.7:8080                 anywhere on your tailnet · encrypted by wireguard
-    ✓ internet   [2001:db8:1234:5678::1]:8080      direct ipv6 — may need a firewall rule · tls
-
-  run this on every other machine
-
-    alpaca link alpaca1:eyJpIjoiYTFiMmMzZDRlNWY2IiwibiI6IndvcmtzaG9wIiwi…
-```
-
+</div>
 
 ## Setup
 
@@ -30,13 +19,13 @@ You need [Ollama](https://ollama.com) running with at least one model pulled:
 ollama pull llama3.2
 ```
 
-**On the machine with the model:**
+On the machine with the model:
 
 ```sh
 alpaca serve
 ```
 
-It prints a connect string. **On every other machine**, paste it once:
+It prints a connect string. On every other machine, paste it once:
 
 ```sh
 alpaca link alpaca1:eyJpIjoi...
@@ -47,19 +36,18 @@ That is the whole setup. The connect string carries the API key, the pinned
 certificate, and every route to the server, so there is nothing else to
 configure and nothing to re-enter later.
 
-
 ## How it finds the server
 
-You pasted one string; after that the address is alpaca's problem, not yours.
-On every launch the client races every route it knows and keeps whichever
-answers first:
+You paste one string; after that the address is alpaca's problem, not yours. On
+every launch the client races each route it knows and keeps whichever answers
+first.
 
 | Route | Transport | When it wins |
-|---|---|---|
+| --- | --- | --- |
 | Last known good | as before | Nothing moved since last time — the usual case |
 | mDNS discovery | plain HTTP | Same network, but the server's IP changed |
-| LAN hints | plain HTTP | Same network, discovery blocked |
-| Public endpoint | **TLS**, pinned | You are somewhere else entirely |
+| LAN hints | plain HTTP | Same network, multicast blocked |
+| Public endpoint | TLS, pinned | You are somewhere else entirely |
 
 The public candidate starts 300 ms late on purpose. Without that stagger it
 sometimes wins a race it should lose — reaching a machine in the same room by
@@ -68,52 +56,49 @@ because the public probe is never opened.
 
 Every probe checks the server's identity, not just that something answered. A
 LAN hint captured months ago may now point at whatever machine DHCP handed the
-address to.
+address to since.
 
-Because addresses change but identity does not, **a connect string keeps working
-across reboots, DHCP leases, and moving between networks.** You only need a new
+Because addresses change but identity does not, a connect string keeps working
+across reboots, DHCP leases, and moving between networks. You only need a new
 one if you rotate the key or the certificate.
-
 
 ## Reaching it from outside your network
 
 In order of preference:
 
-1. **Tailscale** — if the server is on your tailnet, it already works from
-   anywhere, and WireGuard is doing the encryption. Nothing to configure;
-   alpaca picks up the tailnet address automatically.
-2. **IPv6** — most home connections have a globally routable IPv6 address, which
-   needs no port forwarding. alpaca offers it automatically over TLS. Your
-   router firewall may still need an inbound rule.
-3. **UPnP / NAT-PMP** — if enabled on your router, alpaca asks for a port
-   forward on startup and renews it while running. Many routers ship with this
-   off, and it cannot work behind carrier-grade NAT; alpaca detects that case
-   and says so rather than advertising an address that silently fails.
-4. **Manual port forward** — forward a port yourself and start with
+1. **Tailscale.** If the server is on your tailnet it already works from
+   anywhere, with WireGuard doing the encryption. Nothing to configure — alpaca
+   picks up the tailnet address by itself.
+2. **IPv6.** Most home connections have a globally routable IPv6 address, which
+   needs no port forwarding at all. alpaca offers it automatically over TLS,
+   though your router firewall may still want an inbound rule.
+3. **UPnP / NAT-PMP.** If enabled on the router, alpaca requests a port forward
+   at startup and renews it while running. Many routers ship with this off, and
+   it cannot work behind carrier-grade NAT; alpaca detects that case and says so
+   rather than advertising an address that silently fails.
+4. **A manual port forward.** Forward a port yourself and start with
    `alpaca serve --public your.address:8080`.
 
 Anything outside your LAN or tailnet is always TLS.
 
-
 ## Security
 
-- **One API key**, generated on first run, required on every endpoint except the
-  health check. Compared in constant time.
-- **TLS with certificate pinning.** The server's self-signed certificate is
-  pinned by SHA-256 fingerprint in the connect string, so there is no
-  certificate authority to trust and nothing to renew. This is stronger than
-  ordinary CA validation here: a mis-issued public certificate for your address
-  would still be rejected.
+- **One API key**, generated on first run and required on every endpoint except
+  the health check. Compared in constant time.
+- **TLS with certificate pinning.** The self-signed certificate is pinned by
+  SHA-256 fingerprint inside the connect string, so there is no certificate
+  authority to trust and nothing to renew. That is stronger than ordinary CA
+  validation here: a mis-issued public certificate for your address is still
+  rejected.
 - **Plain HTTP only on networks that are already private** — RFC 1918, IPv6
   unique-local, and Tailscale. Anything internet-routable is TLS-only, including
   a public IPv6 address on the server itself.
 - The connect string **contains the API key**. Treat it like a password.
 - Revoke everything with `alpaca serve --rotate-key` (or `--rotate-cert`). Every
-  previously linked machine must re-link.
+  previously linked machine then has to re-link.
 
 `alpaca serve` binds all interfaces by default so other machines can reach it.
 Use `--bind 127.0.0.1` if you only want local access.
-
 
 ## Using it from other tools
 
@@ -143,16 +128,16 @@ Implemented: `/v1/chat/completions` (streaming and buffered), `/v1/models`,
 Supported request fields include `temperature`, `top_p`, `seed`, `stop` (string
 or array), `max_tokens` and `max_completion_tokens`, `response_format:
 json_object`, `stream_options.include_usage`, and multimodal `content` arrays
-with base64 `data:` image URLs. Remote image URLs are refused rather than
-fetched — fetching them would make the gateway an SSRF proxy into your network.
+carrying base64 `data:` image URLs. Remote image URLs are refused rather than
+fetched — fetching them would turn the gateway into an SSRF proxy into your
+network.
 
-
-## Chat interface
+## The chat interface
 
 | Key | Action |
-|---|---|
+| --- | --- |
 | `enter` | Send |
-| `ctrl+j` | Newline (`shift+enter` is not something terminals transmit) |
+| `ctrl+j` | Newline (terminals do not transmit `shift+enter`) |
 | `esc` | Stop generating, or clear the composer |
 | `ctrl+p` | Switch model |
 | `ctrl+n` | New chat |
@@ -167,10 +152,9 @@ Slash commands do the same things: `/model`, `/new`, `/sessions`, `/system`,
 `/retry`, `/copy`, `/clear`, `/stats`, `/help`, `/quit`.
 
 Chats are saved automatically as JSON under `~/.config/alpaca/sessions/`.
-`alpaca chat` starts a **new** conversation each time — old context does not
-silently attach itself to an unrelated question. Use `--resume` or `ctrl+s` to
-pick up where you left off.
-
+`alpaca chat` starts a new conversation each time, so old context never attaches
+itself silently to an unrelated question — use `--resume` or `ctrl+s` to pick up
+where you left off.
 
 ## Commands
 
@@ -192,15 +176,14 @@ alpaca ask "explain this error" < build.log
 cat main.go | alpaca ask "review this" > review.md
 ```
 
-Every command takes `--help`. Multiple servers are supported via `--profile`.
-
+Every command takes `--help`, and multiple servers are supported via `--profile`.
 
 ## Building
 
 ```sh
-make build          # ./alpaca for this machine
-make test           # everything, with the race detector
-make cross          # dist/ binaries for linux, macos, and windows
+make build   # ./alpaca for this machine
+make test    # everything, with the race detector
+make cross   # dist/ binaries for linux, macos, and windows
 ```
 
 Or directly:
@@ -211,12 +194,11 @@ GOOS=linux GOARCH=amd64 go build -o alpaca-linux ./cmd/alpaca
 ```
 
 There is no cgo and there are no runtime dependencies, so deploying to another
-machine is a matter of copying the binary.
+machine means copying one file.
 
+## Where things live
 
-## Configuration
-
-Everything lives in `~/.config/alpaca` (override with `ALPACA_HOME`):
+Everything sits in `~/.config/alpaca` (override with `ALPACA_HOME`):
 
 ```
 server.json      this machine's identity and API key   (serve)
@@ -228,24 +210,27 @@ sessions/        saved chats                           (clients)
 Files are `0600` and written atomically, so an interrupted save cannot corrupt a
 key or lose history.
 
-
 ## Troubleshooting
 
-**"could not reach … on any known route"** — check `alpaca serve` is still
-running. If the server moved networks, run `alpaca discover` to find it, or
-re-link with a fresh connect string.
+**"could not reach … on any known route."** Check that `alpaca serve` is still
+running. If the server moved networks, `alpaca discover` will find it, or re-link
+with a fresh connect string.
 
-**First connection on macOS fails, then works** — macOS asks for Local Network
+**The first connection on macOS fails, then works.** macOS asks for Local Network
 permission the first time a binary talks to a LAN address, and blocks that
-attempt while asking. Approve it and retry; this bites once per binary.
+attempt while asking. Approve it and retry; this happens once per binary.
 
-**"public: unavailable"** — the router has UPnP/NAT-PMP disabled or you are
-behind carrier-grade NAT. LAN and tailnet are unaffected. See
-*Reaching it from outside your network* above.
+**"internet: unavailable."** The router has UPnP/NAT-PMP disabled, or you are
+behind carrier-grade NAT. LAN and tailnet are unaffected — see
+[Reaching it from outside your network](#reaching-it-from-outside-your-network).
 
-**mDNS finds nothing** — some networks block multicast, and most VPNs do. The
-LAN hints and public endpoint in the connect string still work; add
+**mDNS finds nothing.** Some networks block multicast and most VPNs do. The LAN
+hints and public endpoint from the connect string still work; add
 `--no-discovery` to skip the scan and save a couple of seconds.
 
-**A model is missing** — models come from Ollama on the server, so pull it
-there: `ollama pull qwen2.5`.
+**A model is missing.** Models come from Ollama on the server, so pull it there:
+`ollama pull qwen2.5`.
+
+## License
+
+MIT — see [LICENSE](LICENSE).
