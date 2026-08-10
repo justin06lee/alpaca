@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="assets/banner.svg" alt="alpaca" width="820">
+<img src="assets/alpaca.svg" alt="" width="196">
 
 <h1>alpaca</h1>
 
@@ -41,6 +41,8 @@ configure and nothing to re-enter later.
 You paste one string; after that the address is alpaca's problem, not yours. On
 every launch the client races each route it knows and keeps whichever answers
 first.
+
+<img src="assets/banner.svg" alt="One machine runs ollama and streams tokens to client terminals over lan, tailnet, and tls." width="820">
 
 | Route | Transport | When it wins |
 | --- | --- | --- |
