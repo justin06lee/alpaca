@@ -48,6 +48,12 @@ func (m *Model) runSlash(line string) tea.Cmd {
 	case "clear":
 		return m.clearMessages()
 
+	case "search", "web":
+		if rest == "" {
+			return m.setStatus("usage: /search <query>", true)
+		}
+		return m.runSearch(rest)
+
 	case "stats", "info":
 		return m.stats()
 

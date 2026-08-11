@@ -45,6 +45,18 @@ type Chunk struct {
 	Done         bool
 	FinishReason string
 	Usage        *Usage
+	// Event and Detail report work the gateway did on our behalf mid-turn,
+	// such as a web search. They ride in a field standard OpenAI clients
+	// ignore, so they cost nothing for anyone who does not want them.
+	Event  string
+	Detail string
+}
+
+// SearchResult is one hit from the server's search provider.
+type SearchResult struct {
+	Title   string `json:"title"`
+	URL     string `json:"url"`
+	Snippet string `json:"snippet"`
 }
 
 // Model is a model available on the server.
@@ -133,20 +145,27 @@ func parseSSE(ctx context.Context, body io.Reader, onChunk func(Chunk) error) er
 				} `json:"delta"`
 				FinishReason *string `json:"finish_reason"`
 			} `json:"choices"`
-			Usage *Usage `json:"usage"`
+			Usage  *Usage `json:"usage"`
+			Alpaca *struct {
+				Event  string `json:"event"`
+				Detail string `json:"detail"`
+			} `json:"alpaca"`
 		}
 		if err := json.Unmarshal(payload, &frame); err != nil {
 			return fmt.Errorf("unreadable stream frame: %w", err)
 		}
 
 		chunk := Chunk{Usage: frame.Usage}
+		if frame.Alpaca != nil {
+			chunk.Event, chunk.Detail = frame.Alpaca.Event, frame.Alpaca.Detail
+		}
 		if len(frame.Choices) > 0 {
 			chunk.Content = frame.Choices[0].Delta.Content
 			if frame.Choices[0].FinishReason != nil {
 				chunk.FinishReason = *frame.Choices[0].FinishReason
 			}
 		}
-		if chunk.Content == "" && chunk.FinishReason == "" && chunk.Usage == nil {
+		if chunk.Content == "" && chunk.FinishReason == "" && chunk.Usage == nil && chunk.Event == "" {
 			continue // role-announcement frame, nothing to report
 		}
 		if err := onChunk(chunk); err != nil {
@@ -253,4 +272,22 @@ func (c *Client) do(req *http.Request) (*http.Response, error) {
 			strings.TrimSpace(string(snippet)))
 	}
 	return resp, nil
+}
+
+// Search runs a query against the server's search provider directly, rather
+// than waiting for the model to decide to call the tool.
+func (c *Client) Search(ctx context.Context, query string, limit int) ([]SearchResult, error) {
+	resp, err := c.post(ctx, "/api/search", map[string]any{"query": query, "limit": limit})
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	var out struct {
+		Results []SearchResult `json:"results"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return nil, fmt.Errorf("decode search results: %w", err)
+	}
+	return out.Results, nil
 }

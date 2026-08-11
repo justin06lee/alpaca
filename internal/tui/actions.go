@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -184,6 +185,50 @@ func (m *Model) retry() tea.Cmd {
 	m.rebuildCache()
 	m.refreshViewport(true)
 	return m.startStream()
+}
+
+// runSearch queries the server's provider directly and folds the hits into the
+// conversation, so a follow-up question can build on them.
+//
+// The model can already search on its own; this exists for when you want a
+// specific lookup to definitely happen rather than hoping a small model
+// decides to reach for the tool.
+func (m *Model) runSearch(query string) tea.Cmd {
+	c := m.client
+	return tea.Batch(
+		m.setStatus("searching: "+query, false),
+		func() tea.Msg {
+			ctx, cancel := context.WithTimeout(context.Background(), 40*time.Second)
+			defer cancel()
+			results, err := c.Search(ctx, query, 5)
+			return searchDoneMsg{query: query, results: results, err: err}
+		},
+	)
+}
+
+// applySearch records the results as conversation context and shows them.
+func (m *Model) applySearch(msg searchDoneMsg) tea.Cmd {
+	if msg.err != nil {
+		return m.setStatus("search failed: "+msg.err.Error(), true)
+	}
+	if len(msg.results) == 0 {
+		return m.setStatus("no results for "+msg.query, false)
+	}
+
+	var b strings.Builder
+	fmt.Fprintf(&b, "Web results for %q:\n\n", msg.query)
+	for i, r := range msg.results {
+		fmt.Fprintf(&b, "%d. [%s](%s)\n", i+1, r.Title, r.URL)
+		if r.Snippet != "" {
+			fmt.Fprintf(&b, "   %s\n", r.Snippet)
+		}
+	}
+
+	m.sess.Append(client.Message{Role: client.RoleSystem, Content: b.String()})
+	m.cacheLast()
+	m.refreshViewport(true)
+	return tea.Batch(m.persist(),
+		m.setStatus(fmt.Sprintf("%d results added to the conversation", len(msg.results)), false))
 }
 
 func (m *Model) copyLastReply() tea.Cmd {

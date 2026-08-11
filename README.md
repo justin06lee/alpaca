@@ -102,6 +102,59 @@ Anything outside your LAN or tailnet is always TLS.
 `alpaca serve` binds all interfaces by default so other machines can reach it.
 Use `--bind 127.0.0.1` if you only want local access.
 
+## Web search
+
+The model can look things up. The gateway runs the searches itself, so every
+client gets the capability with nothing to configure — the TUI, `alpaca ask`,
+curl, an OpenAI SDK.
+
+Search is off unless you turn it on, and the only provider is
+[SearXNG](https://docs.searxng.org), which you host yourself:
+
+```sh
+docker run -d --name searxng -p 8888:8080 searxng/searxng
+alpaca serve --search searxng --search-url http://localhost:8888
+```
+
+**SearXNG ships with JSON output disabled**, and returns `403` until you enable
+it. In its `settings.yml`:
+
+```yaml
+search:
+  formats:
+    - html
+    - json
+```
+
+For a local-only instance you may also need `server.limiter: false`. alpaca
+detects that specific `403` and prints these instructions rather than making you
+go looking.
+
+Only the snippets SearXNG already returns are used — alpaca never fetches the
+result pages. A search is one request from your machine rather than one per hit,
+and repeated queries are cached for ten minutes.
+
+`--search-results N` caps hits per query (default 5) and `--search-rounds N`
+caps searches per reply (default 3). After that the tool is withheld so the
+model has to answer.
+
+### On small models deciding when to search
+
+Automatic search is a convenience, not a guarantee. Measured on `llama3.2:3b`,
+the decision to reach for the tool is close to a coin flip on anything
+borderline: the same prompt run twice can go either way, and two quite different
+tool descriptions scored identically over the same set. Sampling noise dominates.
+
+So when you actually need a lookup to happen, ask for it directly:
+
+```
+/search go 1.26 release notes
+```
+
+That always runs and folds the results into the conversation. There's a
+`POST /api/search` endpoint behind it if you want it from a script. Larger
+tool-tuned models make much better use of automatic search.
+
 ## Using it from other tools
 
 The gateway speaks the OpenAI API, so most existing tooling works by pointing a
@@ -125,7 +178,7 @@ client.chat.completions.create(
 ```
 
 Implemented: `/v1/chat/completions` (streaming and buffered), `/v1/models`,
-`/v1/embeddings`, plus `/healthz` and `/api/info`.
+`/v1/embeddings`, plus `/healthz`, `/api/info`, and `/api/search`.
 
 Supported request fields include `temperature`, `top_p`, `seed`, `stop` (string
 or array), `max_tokens` and `max_completion_tokens`, `response_format:
@@ -150,8 +203,9 @@ network.
 | `?` | All keys |
 | `ctrl+c` | Quit |
 
-Slash commands do the same things: `/model`, `/new`, `/sessions`, `/system`,
-`/retry`, `/copy`, `/clear`, `/stats`, `/help`, `/quit`.
+Slash commands do the same things, plus `/search <query>` when the server has
+search enabled: `/model`, `/new`, `/sessions`, `/system`, `/retry`, `/copy`,
+`/clear`, `/search`, `/stats`, `/help`, `/quit`.
 
 Chats are saved automatically as JSON under `~/.config/alpaca/sessions/`.
 `alpaca chat` starts a new conversation each time, so old context never attaches

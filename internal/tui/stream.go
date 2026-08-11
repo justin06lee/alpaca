@@ -28,12 +28,20 @@ type (
 		err    error
 	}
 
+	searchDoneMsg struct {
+		query   string
+		results []client.SearchResult
+		err     error
+	}
+
 	// streamEvent is one item from the in-flight reply.
 	streamEvent struct {
 		content string
 		usage   *client.Usage
 		finish  string
 		err     error
+		// note describes work the gateway did mid-turn, such as a web search.
+		note string
 	}
 )
 
@@ -62,6 +70,7 @@ func (m *Model) startStream() tea.Cmd {
 	m.streaming = true
 	m.streamBuf = ""
 	m.streamErr = nil
+	m.streamNotes = nil
 	m.dirty = false
 	m.streamStart = time.Now()
 	m.lastUsage = nil
@@ -78,11 +87,14 @@ func (m *Model) startStream() tea.Cmd {
 		defer close(events)
 
 		err := c.Chat(ctx, req, func(ch client.Chunk) error {
-			if ch.Content == "" && ch.Usage == nil && ch.FinishReason == "" {
+			if ch.Content == "" && ch.Usage == nil && ch.FinishReason == "" && ch.Event == "" {
 				return nil
 			}
 			select {
-			case events <- streamEvent{content: ch.Content, usage: ch.Usage, finish: ch.FinishReason}:
+			case events <- streamEvent{
+				content: ch.Content, usage: ch.Usage, finish: ch.FinishReason,
+				note: describeEvent(ch),
+			}:
 			case <-ctx.Done():
 				return ctx.Err()
 			}
@@ -113,9 +125,27 @@ func waitForEvent(ch chan streamEvent) tea.Cmd {
 	}
 }
 
+// describeEvent renders a gateway event for the transcript.
+func describeEvent(ch client.Chunk) string {
+	switch ch.Event {
+	case "":
+		return ""
+	case "search":
+		return "searched the web — " + ch.Detail
+	case "search_failed":
+		return "web search failed — " + ch.Detail
+	default:
+		return ch.Event + " " + ch.Detail
+	}
+}
+
 func (m *Model) handleStreamEvent(ev streamEvent) tea.Cmd {
 	if ev.err != nil {
 		m.streamErr = ev.err
+	}
+	if ev.note != "" {
+		m.streamNotes = append(m.streamNotes, ev.note)
+		m.dirty = true
 	}
 	if ev.content != "" {
 		m.streamBuf += ev.content

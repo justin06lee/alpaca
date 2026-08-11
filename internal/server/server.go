@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/justin06lee/alpaca/internal/ollama"
+	"github.com/justin06lee/alpaca/internal/search"
 )
 
 // Options configures a gateway.
@@ -27,6 +28,14 @@ type Options struct {
 	// Version is the alpaca build version, reported in /api/info.
 	Version string
 	Logger  *slog.Logger
+
+	// Search, when set, lets the model look things up on the web. The gateway
+	// runs the lookups itself so every client gets the capability without
+	// configuring anything.
+	Search search.Provider
+	// SearchResults caps hits per query; SearchRounds caps tool passes per turn.
+	SearchResults int
+	SearchRounds  int
 }
 
 // Server is the gateway.
@@ -59,6 +68,9 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /v1/models", s.authed(s.handleListModels))
 	mux.Handle("POST /v1/chat/completions", s.authed(s.handleChatCompletions))
 	mux.Handle("POST /v1/embeddings", s.authed(s.handleEmbeddings))
+	// Native endpoint, so a client can run a search directly instead of hoping
+	// the model decides to call the tool.
+	mux.Handle("POST /api/search", s.authed(s.handleSearch))
 
 	return s.recoverPanics(s.logRequests(withCORS(mux)))
 }
@@ -105,6 +117,11 @@ func (s *Server) handleInfo(w http.ResponseWriter, r *http.Request) {
 	}
 	if models, err := s.opts.Ollama.Models(r.Context()); err == nil {
 		info["models"] = len(models)
+	}
+	if s.searchEnabled() {
+		info["search"] = map[string]any{"enabled": true, "provider": s.opts.Search.Name()}
+	} else {
+		info["search"] = map[string]any{"enabled": false}
 	}
 
 	writeJSON(w, http.StatusOK, info)

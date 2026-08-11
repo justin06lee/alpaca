@@ -61,6 +61,8 @@ var (
 	styleSystemNote = lipgloss.NewStyle().
 			Foreground(colorWarn).
 			Italic(true)
+
+	styleSearchNote = lipgloss.NewStyle().Foreground(colorAccent)
 )
 
 // newRenderer builds a markdown renderer sized to the chat pane.
@@ -103,7 +105,9 @@ func (m *Model) renderMessage(msg client.Message) string {
 		return label + "\n" + m.renderMarkdown(msg.Content)
 
 	case client.RoleSystem:
-		return styleSystemNote.Render("▌ system: " + truncate(msg.Content, 200))
+		// Context injected mid-conversation (search results, for instance) is
+		// worth reading, so it is rendered in full rather than truncated.
+		return styleSearchNote.Render("▌ context") + "\n" + m.renderMarkdown(msg.Content)
 
 	default:
 		return styleMuted.Render(msg.Role + ": " + msg.Content)
@@ -151,6 +155,10 @@ func (m *Model) conversation() string {
 	if m.streaming {
 		b.WriteString(styleModelLabel.Render("▌ " + m.sess.Model))
 		b.WriteString("\n")
+		for _, note := range m.streamNotes {
+			b.WriteString(styleSearchNote.Render("  ⌕ " + note))
+			b.WriteString("\n")
+		}
 		if m.streamBuf == "" {
 			b.WriteString(styleMuted.Render(m.spinner.View() + " thinking…"))
 		} else {
