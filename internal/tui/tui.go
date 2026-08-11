@@ -52,8 +52,10 @@ type Model struct {
 	pick     picker
 	showHelp bool
 
-	streaming    bool
-	streamBuf    string
+	streaming bool
+	streamBuf string
+	// streamNotes records what the gateway did mid-turn, e.g. a web search.
+	streamNotes  []string
 	streamErr    error
 	streamCancel context.CancelFunc
 	events       chan streamEvent
@@ -112,6 +114,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case modelsMsg:
 		return m, m.handleModels(msg)
+
+	case searchDoneMsg:
+		return m, m.applySearch(msg)
 
 	case streamEvent:
 		return m, m.handleStreamEvent(msg)
@@ -317,6 +322,7 @@ func (m *Model) helpView() string {
 		{"/retry", "regenerate the last reply"},
 		{"/copy", "copy the last reply to the clipboard"},
 		{"/clear", "delete this chat's messages"},
+		{"/search <query>", "search the web and add the results here"},
 		{"/stats", "show connection and token details"},
 		{"/help", "this screen"},
 		{"/quit", "exit"},

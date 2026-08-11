@@ -77,6 +77,69 @@ type Message struct {
 	Role    string   `json:"role"`
 	Content string   `json:"content"`
 	Images  []string `json:"images,omitempty"`
+	// ToolCalls is set on an assistant message asking for a tool to run.
+	ToolCalls []ToolCall `json:"tool_calls,omitempty"`
+	// ToolName identifies which tool a role:"tool" message is answering.
+	ToolName string `json:"tool_name,omitempty"`
+}
+
+// Tool describes a function the model may call.
+type Tool struct {
+	Type     string       `json:"type"`
+	Function ToolFunction `json:"function"`
+}
+
+// ToolFunction is a tool's name and JSON Schema parameters.
+type ToolFunction struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Parameters  any    `json:"parameters"`
+}
+
+// ToolCall is the model asking for a tool to run.
+type ToolCall struct {
+	// ID is absent on older daemons, so callers must tolerate an empty value.
+	ID       string           `json:"id,omitempty"`
+	Function ToolCallFunction `json:"function"`
+}
+
+// ToolCallFunction names the tool and carries its arguments.
+type ToolCallFunction struct {
+	Name string `json:"name"`
+	// Arguments stays raw because Ollama emits a JSON object here while the
+	// OpenAI wire format uses a JSON-encoded string. Keeping it undecoded lets
+	// each side render the shape it expects without a lossy round trip.
+	Arguments json.RawMessage `json:"arguments,omitempty"`
+}
+
+// ArgumentsJSON renders the arguments as the JSON string OpenAI clients expect.
+func (f ToolCallFunction) ArgumentsJSON() string {
+	if len(f.Arguments) == 0 {
+		return "{}"
+	}
+	// Already a JSON string: hand it back verbatim.
+	var asString string
+	if json.Unmarshal(f.Arguments, &asString) == nil {
+		return asString
+	}
+	return string(f.Arguments)
+}
+
+// StringArg pulls one string field out of the arguments object.
+func (f ToolCallFunction) StringArg(name string) (string, bool) {
+	raw := f.Arguments
+	// Tolerate a JSON-encoded object arriving as a string.
+	var asString string
+	if json.Unmarshal(raw, &asString) == nil {
+		raw = json.RawMessage(asString)
+	}
+
+	var fields map[string]any
+	if json.Unmarshal(raw, &fields) != nil {
+		return "", false
+	}
+	value, ok := fields[name].(string)
+	return value, ok
 }
 
 // Options are Ollama's sampling knobs. Only non-nil fields are sent, so the
@@ -99,6 +162,9 @@ type ChatRequest struct {
 	Options   *Options  `json:"options,omitempty"`
 	KeepAlive string    `json:"keep_alive,omitempty"`
 	Format    string    `json:"format,omitempty"`
+	// Tools the model may call. Only models advertising the "tools" capability
+	// act on these; others ignore them.
+	Tools []Tool `json:"tools,omitempty"`
 }
 
 // Stats are the counters Ollama reports when a generation finishes.
@@ -124,6 +190,10 @@ type Chunk struct {
 	Done    bool
 	Reason  string
 	Stats   Stats
+	// ToolCalls is populated when the model asks to run a tool. Ollama emits
+	// the whole call in one frame rather than streaming it in fragments the
+	// way the OpenAI wire format does, so this arrives complete.
+	ToolCalls []ToolCall
 }
 
 // chatFrame mirrors one NDJSON line of Ollama's /api/chat stream.
@@ -142,9 +212,10 @@ type chatFrame struct {
 
 func (f chatFrame) chunk() Chunk {
 	return Chunk{
-		Content: f.Message.Content,
-		Done:    f.Done,
-		Reason:  f.Reason,
+		Content:   f.Message.Content,
+		Done:      f.Done,
+		Reason:    f.Reason,
+		ToolCalls: f.Message.ToolCalls,
 		Stats: Stats{
 			PromptTokens:  f.PromptCnt,
 			EvalTokens:    f.EvalCnt,

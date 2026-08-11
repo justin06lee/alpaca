@@ -23,6 +23,7 @@ import (
 	"github.com/justin06lee/alpaca/internal/netx"
 	"github.com/justin06lee/alpaca/internal/ollama"
 	"github.com/justin06lee/alpaca/internal/portmap"
+	"github.com/justin06lee/alpaca/internal/search"
 	"github.com/justin06lee/alpaca/internal/server"
 )
 
@@ -43,6 +44,10 @@ alpaca serve — expose the local ollama daemon as a networked API
   --name NAME       friendly name shown to clients (default: this hostname)
   --public HOST:PORT  advertise this internet-reachable address, for when you
                     have forwarded a port on the router yourself
+  --search KIND     enable web search for the model ("searxng")
+  --search-url URL  the SearXNG instance, e.g. http://localhost:8888
+  --search-results N  hits per query (default 5)
+  --search-rounds N   how many searches the model may run per reply (default 3)
   --no-mdns         do not announce on the local network
   --no-portmap      do not ask the router to forward a port
   --rotate-key      issue a new API key, invalidating every existing client
@@ -58,6 +63,10 @@ alpaca serve — expose the local ollama daemon as a networked API
 	ollamaURL := fs.String("ollama", "", "")
 	name := fs.String("name", "", "")
 	publicAddr := fs.String("public", "", "")
+	searchKind := fs.String("search", "", "")
+	searchURL := fs.String("search-url", "", "")
+	searchResults := fs.Int("search-results", 5, "")
+	searchRounds := fs.Int("search-rounds", 3, "")
 	noMDNS := fs.Bool("no-mdns", false, "")
 	noPortmap := fs.Bool("no-portmap", false, "")
 	rotateKey := fs.Bool("rotate-key", false, "")
@@ -120,6 +129,13 @@ alpaca serve — expose the local ollama daemon as a networked API
 		fmt.Fprintln(os.Stderr, "warning: ollama has no models installed — run `ollama pull llama3.2` first")
 	}
 
+	// --- search -----------------------------------------------------------
+
+	searchProvider, searchNote, err := buildSearch(*searchKind, *searchURL)
+	if err != nil {
+		return err
+	}
+
 	// --- tls --------------------------------------------------------------
 
 	certDir, err := config.Path("certs", "placeholder")
@@ -158,12 +174,15 @@ alpaca serve — expose the local ollama daemon as a networked API
 	defer sniffer.Close()
 
 	gateway := server.New(server.Options{
-		Ollama:  daemon,
-		APIKey:  identity.APIKey,
-		ID:      identity.ID,
-		Name:    identity.Name,
-		Version: buildVersion(),
-		Logger:  log,
+		Ollama:        daemon,
+		APIKey:        identity.APIKey,
+		ID:            identity.ID,
+		Name:          identity.Name,
+		Version:       buildVersion(),
+		Logger:        log,
+		Search:        searchProvider,
+		SearchResults: *searchResults,
+		SearchRounds:  *searchRounds,
 	})
 
 	plainSrv := gateway.NewHTTPServer()
@@ -265,6 +284,7 @@ alpaca serve — expose the local ollama daemon as a networked API
 		connectString: connectString,
 		quiet:         *quiet,
 		mdns:          advertisement != nil,
+		search:        searchNote,
 	})
 
 	// --- run --------------------------------------------------------------
@@ -340,6 +360,7 @@ type bannerInfo struct {
 	connectString string
 	quiet         bool
 	mdns          bool
+	search        string
 }
 
 func printBanner(info bannerInfo) {
@@ -412,6 +433,13 @@ func printBanner(info bannerInfo) {
 	}
 	fmt.Fprintln(out)
 
+	mark := bad.Render("✗")
+	if strings.HasPrefix(info.search, "on ") {
+		mark = ok.Render("✓")
+	}
+	fmt.Fprintf(out, "  %s %s %s\n", muted.Render("web search"), mark, muted.Render(info.search))
+	fmt.Fprintln(out)
+
 	// The connect string.
 	if !info.quiet {
 		fmt.Fprintln(out, muted.Render("  run this on every other machine"))
@@ -445,4 +473,42 @@ func shortenError(err error) string {
 		text = text[:90] + "…"
 	}
 	return "unavailable: " + text
+}
+
+// buildSearch wires up the search provider named on the command line.
+//
+// The instance is pinged rather than queried: that confirms it is up using one
+// local request, without sending anything to an upstream engine just to check.
+func buildSearch(kind, instanceURL string) (search.Provider, string, error) {
+	switch strings.ToLower(strings.TrimSpace(kind)) {
+	case "":
+		return nil, "off — start with --search searxng --search-url URL to enable", nil
+
+	case "searxng":
+		if instanceURL == "" {
+			instanceURL = "http://localhost:8888"
+		}
+		provider, err := search.NewSearXNG(instanceURL)
+		if err != nil {
+			return nil, "", err
+		}
+
+		note := "on · " + provider.Name()
+		ctx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
+		err = provider.Ping(ctx)
+		cancel()
+		if err != nil {
+			// Not fatal: the instance may still be starting. The model simply
+			// gets a clear failure back if it tries to search.
+			fmt.Fprintf(os.Stderr, "warning: %v\n", err)
+			note = "on · " + provider.Name() + " (not responding yet)"
+		}
+
+		// Repeat queries within a conversation are common, and every one saved
+		// is one fewer round trip out of the network.
+		return search.NewCached(provider, 10*time.Minute, 128), note, nil
+
+	default:
+		return nil, "", fmt.Errorf("unknown search provider %q (supported: searxng)", kind)
+	}
 }

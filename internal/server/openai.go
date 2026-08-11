@@ -211,6 +211,16 @@ type chunkResponse struct {
 	Model   string        `json:"model"`
 	Choices []chunkChoice `json:"choices"`
 	Usage   *usage        `json:"usage,omitempty"`
+	// Alpaca carries out-of-band progress that has no place in the OpenAI
+	// schema. Clients that do not know about it see a chunk with no choices
+	// and skip it, which is exactly the desired behaviour.
+	Alpaca *alpacaEvent `json:"alpaca,omitempty"`
+}
+
+// alpacaEvent reports something the gateway did on the client's behalf.
+type alpacaEvent struct {
+	Event  string `json:"event"`
+	Detail string `json:"detail,omitempty"`
 }
 
 type chunkChoice struct {
@@ -276,6 +286,9 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// The model can only search if the gateway was started with a provider.
+	s.prepareTools(&ollamaReq, true)
+
 	if req.Stream {
 		s.streamChat(w, r, req, ollamaReq)
 		return
@@ -288,16 +301,37 @@ func (s *Server) bufferChat(w http.ResponseWriter, r *http.Request, req ollama.C
 	var body strings.Builder
 	var final ollama.Chunk
 
-	err := s.opts.Ollama.Chat(r.Context(), req, func(ch ollama.Chunk) error {
-		body.WriteString(ch.Content)
-		if ch.Done {
-			final = ch
+	// Tool rounds run to completion before anything is returned; only the last
+	// generation's text is the answer.
+	for round := 0; ; round++ {
+		lastRound := round >= s.maxRounds()
+		if lastRound {
+			// Withhold the tools so the model has no choice but to answer.
+			req.Tools = nil
 		}
-		return nil
-	})
-	if err != nil {
-		s.writeUpstreamError(w, err)
-		return
+
+		var calls []ollama.ToolCall
+		body.Reset()
+
+		err := s.opts.Ollama.Chat(r.Context(), req, func(ch ollama.Chunk) error {
+			if len(ch.ToolCalls) > 0 {
+				calls = append(calls, ch.ToolCalls...)
+			}
+			body.WriteString(ch.Content)
+			if ch.Done {
+				final = ch
+			}
+			return nil
+		})
+		if err != nil {
+			s.writeUpstreamError(w, err)
+			return
+		}
+
+		if len(calls) == 0 || lastRound {
+			break
+		}
+		s.resolveToolCalls(r.Context(), &req, calls)
 	}
 
 	writeJSON(w, http.StatusOK, completionResponse{
@@ -358,24 +392,79 @@ func (s *Server) streamChat(w http.ResponseWriter, r *http.Request, req chatComp
 		})
 	}
 
-	err := s.opts.Ollama.Chat(r.Context(), ollamaReq, func(ch ollama.Chunk) error {
+	// notify reports a tool round to the client. The frame carries no choices,
+	// so an ordinary OpenAI client iterates an empty list and moves on, while
+	// alpaca's own client can surface it as a status line.
+	notify := func(event, detail string) {
+		_ = emit(chunkResponse{
+			ID: id, Object: "chat.completion.chunk", Created: created, Model: ollamaReq.Model,
+			Choices: []chunkChoice{},
+			Alpaca:  &alpacaEvent{Event: event, Detail: detail},
+		})
+	}
+
+	var err error
+	for round := 0; ; round++ {
+		lastRound := round >= s.maxRounds()
+		if lastRound {
+			ollamaReq.Tools = nil
+		}
+
+		var calls []ollama.ToolCall
+		producedContent := false
+
+		err = s.opts.Ollama.Chat(r.Context(), ollamaReq, func(ch ollama.Chunk) error {
+			// A tool call arrives complete in its own frame, and a turn that
+			// calls a tool carries no prose. Collecting it without starting the
+			// stream is what lets a search happen invisibly before the first
+			// token of the real answer.
+			if len(ch.ToolCalls) > 0 && !producedContent && !lastRound {
+				calls = append(calls, ch.ToolCalls...)
+				return nil
+			}
+			if ch.Done {
+				final = ch
+				return nil
+			}
+			if ch.Content == "" {
+				return nil
+			}
+			producedContent = true
+			if !started {
+				if err := begin(); err != nil {
+					return err
+				}
+			}
+			return emit(chunkResponse{
+				ID: id, Object: "chat.completion.chunk", Created: created, Model: ollamaReq.Model,
+				Choices: []chunkChoice{{Index: 0, Delta: responseMsg{Content: ch.Content}}},
+			})
+		})
+		if err != nil {
+			break
+		}
+
+		if len(calls) == 0 || producedContent || lastRound {
+			break
+		}
+
+		// Committing to the stream here is deliberate: the request is clearly
+		// valid and the model is working, so the status is worth more than
+		// keeping the option of a non-200 status open.
 		if !started {
-			if err := begin(); err != nil {
-				return err
+			if err = begin(); err != nil {
+				break
 			}
 		}
-		if ch.Done {
-			final = ch
-			return nil
+		for _, round := range s.resolveToolCalls(r.Context(), &ollamaReq, calls) {
+			switch {
+			case round.Err != nil:
+				notify("search_failed", round.Err.Error())
+			default:
+				notify("search", fmt.Sprintf("%s — %d results", round.Query, round.Results))
+			}
 		}
-		if ch.Content == "" {
-			return nil
-		}
-		return emit(chunkResponse{
-			ID: id, Object: "chat.completion.chunk", Created: created, Model: ollamaReq.Model,
-			Choices: []chunkChoice{{Index: 0, Delta: responseMsg{Content: ch.Content}}},
-		})
-	})
+	}
 
 	if err != nil {
 		if !started {
