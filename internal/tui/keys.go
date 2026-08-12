@@ -19,7 +19,10 @@ func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	// fine. Ignoring input for the first few frames outlasts that chatter and
 	// costs a deliberate keypress nothing anyone can perceive.
 	if !m.splashDone {
-		if m.splashScan >= splashGrace && isDeliberateKey(msg) {
+		// Not skippable until the connection lands: the opening doubles as the
+		// loading screen, and dismissing it early would hand over an interface
+		// with no server behind it.
+		if m.client != nil && m.splashScan >= splashGrace && isDeliberateKey(msg) {
 			m.splashDone = true
 		}
 		return m, nil

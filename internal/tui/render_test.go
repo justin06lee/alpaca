@@ -46,9 +46,11 @@ func newRenderedModel(t *testing.T) *Model {
 	}
 
 	sess := session.New("llama3.2:latest", "workshop")
-	m := New(c, store, profiles, "workshop", sess)
+	m := New(Connected(c), store, profiles, "workshop", sess)
 	m.Update(tea.WindowSizeMsg{Width: 96, Height: 28})
-	// These tests exercise the chat surface, so step past the opening animation.
+	// These tests exercise the chat surface, so land the connection and step
+	// past the opening animation the way the runtime would.
+	m.Update(connectedMsg{client: c})
 	m.splashDone = true
 	return m
 }

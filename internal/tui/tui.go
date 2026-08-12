@@ -27,8 +27,21 @@ const (
 // statusLifetime is how long a transient message stays on the status bar.
 const statusLifetime = 4 * time.Second
 
+// Connector opens the connection to a server. The interface takes one rather
+// than a ready client so the opening animation can cover the connection, which
+// on a cold start is the slowest part: racing routes and waiting on an mDNS
+// scan takes long enough that a blank terminal looks like a hang.
+type Connector func(context.Context) (*client.Client, error)
+
+// Connected wraps an already-open client, for demo mode and tests.
+func Connected(c *client.Client) Connector {
+	return func(context.Context) (*client.Client, error) { return c, nil }
+}
+
 // Model is the Bubble Tea model for the chat interface.
 type Model struct {
+	connect     Connector
+	connectErr  error
 	client      *client.Client
 	store       *session.Store
 	profiles    *config.Profiles
@@ -77,8 +90,8 @@ type Model struct {
 	quitting bool
 }
 
-// New builds the chat interface.
-func New(c *client.Client, store *session.Store, profiles *config.Profiles, profileName string, sess *session.Session) *Model {
+// New builds the chat interface. The connector runs while the opening plays.
+func New(connect Connector, store *session.Store, profiles *config.Profiles, profileName string, sess *session.Session) *Model {
 	input := textarea.New()
 	input.Placeholder = "Send a message…  (enter to send, ctrl+j for a newline)"
 	input.ShowLineNumbers = false
@@ -93,7 +106,11 @@ func New(c *client.Client, store *session.Store, profiles *config.Profiles, prof
 	spin.Spinner = spinner.Dot
 
 	return &Model{
-		client:      c,
+		connect: connect,
+		// A size is assumed until the terminal reports one, so the opening can
+		// draw immediately instead of showing a "starting…" placeholder.
+		width:       80,
+		height:      24,
 		store:       store,
 		profiles:    profiles,
 		profileName: profileName,
@@ -104,8 +121,12 @@ func New(c *client.Client, store *session.Store, profiles *config.Profiles, prof
 }
 
 func (m *Model) Init() tea.Cmd {
-	return tea.Batch(textarea.Blink, loadModels(m.client), splashTick())
+	return tea.Batch(textarea.Blink, splashTick(), connectCmd(m.connect))
 }
+
+// Err reports a failure that ended the session, so the command line can print
+// it properly instead of the interface swallowing it.
+func (m *Model) Err() error { return m.connectErr }
 
 // splashTotal is how many ticks the opening runs for: one per row, plus the
 // hold at the end.
@@ -116,7 +137,7 @@ func (m *Model) splashTotal() int {
 // splashTagline names what the interface is about to connect to.
 func (m *Model) splashTagline() string {
 	if m.client == nil {
-		return ""
+		return "connecting…"
 	}
 	if m.client.Route().Source == client.SourceDemo {
 		return "offline demo · canned replies, no network"
@@ -145,12 +166,25 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case streamClosedMsg:
 		return m, m.finishStream()
 
+	case connectedMsg:
+		if msg.err != nil {
+			// Nothing to chat with; let the command line report why.
+			m.connectErr = msg.err
+			m.quitting = true
+			return m, tea.Quit
+		}
+		m.client = msg.client
+		return m, loadModels(m.client)
+
 	case splashTickMsg:
 		if m.splashDone {
 			return m, nil
 		}
 		m.splashScan++
-		if m.splashScan > m.splashTotal() {
+		// The opening also serves as the loading screen, so it holds until the
+		// connection resolves rather than handing over to an interface that has
+		// nothing behind it yet.
+		if m.splashScan > m.splashTotal() && m.client != nil {
 			m.splashDone = true
 			return m, nil
 		}
@@ -260,9 +294,6 @@ func (m *Model) handleModels(msg modelsMsg) tea.Cmd {
 }
 
 func (m *Model) View() string {
-	if !m.ready {
-		return "starting…"
-	}
 	if m.quitting {
 		return ""
 	}

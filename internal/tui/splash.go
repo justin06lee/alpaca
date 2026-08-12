@@ -313,12 +313,13 @@ func renderSplash(width, height, scan int, tagline string) string {
 	}
 
 	// The tagline arrives only once the picture is complete.
-	if scan > len(art)+1 && tagline != "" {
+	settledYet := scan > len(art)+1
+	if settledYet && tagline != "" {
 		lines = append(lines, "", styleMuted.Render(tagline))
 	}
 
-	body := lipgloss.NewStyle().Width(width).Align(lipgloss.Center).
-		Render(strings.Join(lines, "\n"))
+	centre := lipgloss.NewStyle().Width(width).Align(lipgloss.Center)
+	body := centre.Render(strings.Join(lines, "\n"))
 
 	// Hold the image at a fixed position rather than letting it creep downward
 	// as rows appear.
@@ -326,8 +327,30 @@ func renderSplash(width, height, scan int, tagline string) string {
 	if topPad < 0 {
 		topPad = 0
 	}
-	return strings.Repeat("\n", topPad) + body
+
+	out := make([]string, 0, height)
+	for i := 0; i < topPad; i++ {
+		out = append(out, "")
+	}
+	out = append(out, strings.Split(body, "\n")...)
+
+	// The credit sits on the last row, arriving with the tagline so it does not
+	// pre-empt the reveal sweeping down from the top.
+	if settledYet && height > len(out)+1 {
+		for len(out) < height-1 {
+			out = append(out, "")
+		}
+		out = append(out, centre.Render(styleCredit.Render(credit)))
+	}
+	if len(out) > height && height > 0 {
+		out = out[:height]
+	}
+	return strings.Join(out, "\n")
 }
+
+// credit is deliberately quiet: dark enough on a dark terminal, and light
+// enough on a light one, to read as a signature rather than a banner.
+const credit = "made by justin06lee.dev"
 
 // halfBlock renders two stacked pixels into one cell. ▀ paints the upper half
 // in the foreground colour and leaves the lower half to the background, so a

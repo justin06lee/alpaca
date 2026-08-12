@@ -28,7 +28,7 @@ func newTestModel(t *testing.T) *Model {
 	profiles.Add(&config.Profile{ID: "id", Name: "test", APIKey: "k"})
 
 	sess := session.New("llama3.2:latest", "test")
-	return New(nil, store, profiles, "test", sess)
+	return New(Connected(nil), store, profiles, "test", sess)
 }
 
 // ---------------------------------------------------------------------------

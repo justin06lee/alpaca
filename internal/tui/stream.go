@@ -29,6 +29,11 @@ type (
 		err    error
 	}
 
+	connectedMsg struct {
+		client *client.Client
+		err    error
+	}
+
 	searchDoneMsg struct {
 		query   string
 		results []client.SearchResult
@@ -64,6 +69,18 @@ func splashTick() tea.Cmd {
 
 func tick() tea.Cmd {
 	return tea.Tick(repaintInterval, func(t time.Time) tea.Msg { return tickMsg(t) })
+}
+
+// connectCmd opens the connection off the update loop, so the opening keeps
+// animating while routes are raced.
+func connectCmd(connect Connector) tea.Cmd {
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		defer cancel()
+
+		c, err := connect(ctx)
+		return connectedMsg{client: c, err: err}
+	}
 }
 
 func loadModels(c *client.Client) tea.Cmd {

@@ -63,6 +63,12 @@ var (
 			Italic(true)
 
 	styleSearchNote = lipgloss.NewStyle().Foreground(colorAccent)
+
+	// Barely there on either background, which is the point.
+	styleCredit = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{
+		Light: "#CDCDCD",
+		Dark:  "#3A3A3A",
+	})
 )
 
 // newRenderer builds a markdown renderer sized to the chat pane.
@@ -230,6 +236,10 @@ func (m *Model) welcome() string {
 // header renders the top bar: who we are talking to and how we got there.
 func (m *Model) header() string {
 	left := styleHeader.Render("alpaca")
+
+	if m.client == nil {
+		return left
+	}
 
 	route := m.client.Route()
 	var meta string

@@ -51,18 +51,22 @@ alpaca chat — open the chat interface
 		return err
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	c, err := client.Connect(ctx, profile, client.Options{
-		ForceEndpoint: *endpoint,
-		ForceTLS:      *forceTLS,
-		SkipDiscovery: *noDiscovery,
-	})
-	cancel()
-	if err != nil {
-		return err
-	}
-	if err := c.RememberRoute(profiles); err != nil {
-		return err
+	// Connecting happens inside the interface, behind the opening animation:
+	// racing routes and waiting on an mDNS scan is the slow part of a cold
+	// start, and a blank terminal for those seconds reads as a hang.
+	connect := func(ctx context.Context) (*client.Client, error) {
+		c, err := client.Connect(ctx, profile, client.Options{
+			ForceEndpoint: *endpoint,
+			ForceTLS:      *forceTLS,
+			SkipDiscovery: *noDiscovery,
+		})
+		if err != nil {
+			return nil, err
+		}
+		if err := c.RememberRoute(profiles); err != nil {
+			return nil, err
+		}
+		return c, nil
 	}
 
 	store, err := session.NewStore()
@@ -78,14 +82,13 @@ alpaca chat — open the chat interface
 		sess.Model = *model
 	}
 
-	program := tea.NewProgram(
-		tui.New(c, store, profiles, profile.Name, sess),
-		tea.WithAltScreen(),
-	)
-	if _, err := program.Run(); err != nil {
+	ui := tui.New(connect, store, profiles, profile.Name, sess)
+	if _, err := tea.NewProgram(ui, tea.WithAltScreen()).Run(); err != nil {
 		return fmt.Errorf("chat interface: %w", err)
 	}
-	return nil
+	// A connection failure ends the session; report it out here where it can be
+	// printed in full rather than squeezed into a status bar.
+	return ui.Err()
 }
 
 // pickSession decides which conversation to open.
@@ -193,14 +196,11 @@ func runDemoChat(model string) error {
 	}
 
 	profiles := &config.Profiles{Entries: map[string]*config.Profile{}}
-	program := tea.NewProgram(
-		tui.New(c, store, profiles, "demo", sess),
-		tea.WithAltScreen(),
-	)
-	if _, err := program.Run(); err != nil {
+	ui := tui.New(tui.Connected(c), store, profiles, "demo", sess)
+	if _, err := tea.NewProgram(ui, tea.WithAltScreen()).Run(); err != nil {
 		return fmt.Errorf("chat interface: %w", err)
 	}
-	return nil
+	return ui.Err()
 }
 
 // seedDemoSessions puts a couple of conversations in the sandbox so the saved

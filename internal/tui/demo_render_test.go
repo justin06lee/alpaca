@@ -30,8 +30,9 @@ func TestDemoModeRendersAConversation(t *testing.T) {
 	profiles := &config.Profiles{Entries: map[string]*config.Profile{}}
 	sess := session.New("llama3.2:latest", "demo")
 
-	m := New(c, store, profiles, "demo", sess)
+	m := New(Connected(c), store, profiles, "demo", sess)
 	m.Update(tea.WindowSizeMsg{Width: 92, Height: 30})
+	m.Update(connectedMsg{client: c})
 	m.splashDone = true
 
 	// Empty state is the first thing anyone sees.
@@ -102,9 +103,10 @@ func TestDemoModeSessionPickerHasContent(t *testing.T) {
 		}
 	}
 
-	m := New(c, store, &config.Profiles{Entries: map[string]*config.Profile{}}, "demo",
+	m := New(Connected(c), store, &config.Profiles{Entries: map[string]*config.Profile{}}, "demo",
 		session.New("llama3.2:latest", "demo"))
 	m.Update(tea.WindowSizeMsg{Width: 92, Height: 24})
+	m.Update(connectedMsg{client: c})
 	m.splashDone = true
 	m.openSessionPicker()
 

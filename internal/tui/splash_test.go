@@ -1,11 +1,15 @@
 package tui
 
 import (
+	"context"
 	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/justin06lee/alpaca/internal/client"
+	"github.com/justin06lee/alpaca/internal/config"
+	"github.com/justin06lee/alpaca/internal/session"
 	"github.com/muesli/termenv"
 )
 
@@ -244,5 +248,75 @@ func TestHalfBlockPairs(t *testing.T) {
 	}
 	if neither != " " {
 		t.Errorf("empty cell = %q, want a space", neither)
+	}
+}
+
+// The opening doubles as the loading screen, so it must not be dismissable
+// before the connection lands: handing over early would render a chat surface
+// with no client behind it, which panicked.
+func TestSplashHoldsUntilConnected(t *testing.T) {
+	t.Setenv("ALPACA_HOME", t.TempDir())
+	store, err := session.NewStore()
+	if err != nil {
+		t.Fatalf("NewStore: %v", err)
+	}
+	profiles := &config.Profiles{Entries: map[string]*config.Profile{}}
+
+	// A connector that never returns stands in for a slow route race.
+	stalled := func(ctx context.Context) (*client.Client, error) {
+		<-ctx.Done()
+		return nil, ctx.Err()
+	}
+	m := New(stalled, store, profiles, "test", session.New("m", "test"))
+	m.Update(tea.WindowSizeMsg{Width: 90, Height: 34})
+
+	// Run well past the point the reveal would otherwise end.
+	for i := 0; i < m.splashTotal()+30; i++ {
+		m.Update(splashTickMsg{})
+	}
+	if m.splashDone {
+		t.Error("the opening finished while still connecting")
+	}
+
+	// Nor can it be skipped by hand while there is nothing to talk to.
+	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'x'}})
+	if m.splashDone {
+		t.Error("a keypress dismissed the loading screen before connecting")
+	}
+
+	// Rendering in that state must not panic on the absent client.
+	if view := stripANSI(m.View()); !strings.Contains(view, "connecting") {
+		t.Errorf("loading screen does not say it is connecting:\n%s", view)
+	}
+
+	// Once connected it hands over.
+	c, stop, err := client.NewDemo()
+	if err != nil {
+		t.Fatalf("NewDemo: %v", err)
+	}
+	defer stop()
+	m.Update(connectedMsg{client: c})
+	m.Update(splashTickMsg{})
+	if !m.splashDone {
+		t.Error("the opening did not finish after the connection landed")
+	}
+}
+
+// A connection failure has to reach the command line, not vanish into the UI.
+func TestConnectFailureEndsTheSession(t *testing.T) {
+	t.Setenv("ALPACA_HOME", t.TempDir())
+	store, _ := session.NewStore()
+	m := New(func(context.Context) (*client.Client, error) {
+		return nil, errFake{"no route to host"}
+	}, store, &config.Profiles{Entries: map[string]*config.Profile{}}, "test",
+		session.New("m", "test"))
+
+	m.Update(connectedMsg{err: errFake{"no route to host"}})
+
+	if m.Err() == nil || !strings.Contains(m.Err().Error(), "no route to host") {
+		t.Errorf("Err() = %v, want the connection failure", m.Err())
+	}
+	if !m.quitting {
+		t.Error("a failed connection should end the session")
 	}
 }
