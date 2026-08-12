@@ -19,6 +19,13 @@ You need [Ollama](https://ollama.com) running with at least one model pulled:
 ollama pull llama3.2
 ```
 
+Then build alpaca and put it on your PATH (see
+[Building and installing](#building-and-installing) for the details):
+
+```sh
+make install
+```
+
 On the machine with the model:
 
 ```sh
@@ -234,15 +241,35 @@ cat main.go | alpaca ask "review this" > review.md
 
 Every command takes `--help`, and multiple servers are supported via `--profile`.
 
-## Building
+## Building and installing
 
 ```sh
-make build   # ./alpaca for this machine
-make test    # everything, with the race detector
-make cross   # dist/ binaries for linux, macos, and windows
+make build      # ./alpaca in the repo
+make install    # put it on your PATH, so `alpaca` works from anywhere
 ```
 
-Or directly:
+`make install` builds first and installs that binary, so what lands on your PATH
+is exactly what was just built. It picks the first directory that is both
+writable and already on your PATH — `$GOBIN`, then `$GOPATH/bin`, then
+`~/.local/bin`, then `/usr/local/bin` — and only reaches for `sudo` if the
+target needs it.
+
+```sh
+make where      # show the version, the chosen directory, and what's installed
+make uninstall  # remove it again
+```
+
+Override the destination with `make install BINDIR=/somewhere/else`. If the
+chosen directory turns out not to be on your PATH, or an older copy of `alpaca`
+elsewhere shadows the new one, `make install` says so rather than appearing to
+succeed.
+
+```sh
+make test       # everything, with the race detector
+make cross      # dist/ binaries for linux, macos, and windows
+```
+
+Or without make:
 
 ```sh
 go build -o alpaca ./cmd/alpaca
