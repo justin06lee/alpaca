@@ -32,6 +32,7 @@ func TestDemoModeRendersAConversation(t *testing.T) {
 
 	m := New(c, store, profiles, "demo", sess)
 	m.Update(tea.WindowSizeMsg{Width: 92, Height: 30})
+	m.splashDone = true
 
 	// Empty state is the first thing anyone sees.
 	t.Logf("EMPTY STATE\n%s", stripANSI(m.View()))
@@ -104,6 +105,7 @@ func TestDemoModeSessionPickerHasContent(t *testing.T) {
 	m := New(c, store, &config.Profiles{Entries: map[string]*config.Profile{}}, "demo",
 		session.New("llama3.2:latest", "demo"))
 	m.Update(tea.WindowSizeMsg{Width: 92, Height: 24})
+	m.splashDone = true
 	m.openSessionPicker()
 
 	view := stripANSI(m.View())

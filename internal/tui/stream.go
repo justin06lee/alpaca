@@ -20,6 +20,7 @@ const repaintInterval = 80 * time.Millisecond
 // Messages.
 type (
 	tickMsg          time.Time
+	splashTickMsg    time.Time
 	statusExpiredMsg int
 	streamClosedMsg  struct{}
 
@@ -44,6 +45,17 @@ type (
 		note string
 	}
 )
+
+// splashInterval is one scanline. Slow enough to read as a sweep, quick enough
+// that the whole reveal is over before it becomes something to sit through.
+const splashInterval = 35 * time.Millisecond
+
+// splashHold is how many ticks the finished image stays up.
+const splashHold = 12
+
+func splashTick() tea.Cmd {
+	return tea.Tick(splashInterval, func(t time.Time) tea.Msg { return splashTickMsg(t) })
+}
 
 func tick() tea.Cmd {
 	return tea.Tick(repaintInterval, func(t time.Time) tea.Msg { return tickMsg(t) })

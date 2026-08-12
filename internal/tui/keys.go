@@ -10,6 +10,11 @@ func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, m.quit()
 	}
 
+	// Nobody should have to sit through an animation.
+	if !m.splashDone {
+		m.splashDone = true
+		return m, nil
+	}
 	if m.showHelp {
 		m.showHelp = false
 		return m, nil

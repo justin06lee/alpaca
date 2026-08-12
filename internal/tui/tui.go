@@ -52,6 +52,10 @@ type Model struct {
 	pick     picker
 	showHelp bool
 
+	// splashScan is how many rows of the opening image have been painted.
+	splashScan int
+	splashDone bool
+
 	streaming bool
 	streamBuf string
 	// streamNotes records what the gateway did mid-turn, e.g. a web search.
@@ -100,7 +104,24 @@ func New(c *client.Client, store *session.Store, profiles *config.Profiles, prof
 }
 
 func (m *Model) Init() tea.Cmd {
-	return tea.Batch(textarea.Blink, loadModels(m.client))
+	return tea.Batch(textarea.Blink, loadModels(m.client), splashTick())
+}
+
+// splashTotal is how many ticks the opening runs for: one per row, plus the
+// hold at the end.
+func (m *Model) splashTotal() int {
+	return len(splashArt(m.height)) + splashHold
+}
+
+// splashTagline names what the interface is about to connect to.
+func (m *Model) splashTagline() string {
+	if m.client == nil {
+		return ""
+	}
+	if m.client.Route().Source == client.SourceDemo {
+		return "offline demo · canned replies, no network"
+	}
+	return m.profileName + " · " + m.client.Route().Endpoint
 }
 
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -123,6 +144,17 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case streamClosedMsg:
 		return m, m.finishStream()
+
+	case splashTickMsg:
+		if m.splashDone {
+			return m, nil
+		}
+		m.splashScan++
+		if m.splashScan > m.splashTotal() {
+			m.splashDone = true
+			return m, nil
+		}
+		return m, splashTick()
 
 	case tickMsg:
 		if !m.streaming {
@@ -235,6 +267,9 @@ func (m *Model) View() string {
 		return ""
 	}
 
+	if !m.splashDone {
+		return renderSplash(m.width, m.height, m.splashScan, m.splashTagline())
+	}
 	if m.showHelp {
 		return m.helpView()
 	}
