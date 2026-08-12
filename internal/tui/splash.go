@@ -182,74 +182,134 @@ func splashPalette(bright bool) map[rune]lipgloss.Style {
 	return out
 }
 
-// splashArt assembles the whole image as colour-key rows.
-//
-// The alpaca is dropped when the terminal is too short for both, because a
-// clipped animal looks like a bug rather than a choice.
-func splashArt(height int) []string {
+// splashArt is the whole image as colour-key rows: the animal, a gap, then the
+// wordmark. Sizing decisions belong to the layout, not here.
+func splashArt(withAnimal bool) []string {
 	mark := wordmark()
-
-	if height < len(alpacaPixels)+len(mark)+4 {
+	if !withAnimal {
 		return mark
 	}
-
-	rows := make([]string, 0, len(alpacaPixels)+len(mark)+1)
+	rows := make([]string, 0, len(alpacaPixels)+1+len(mark))
 	rows = append(rows, alpacaPixels...)
 	rows = append(rows, "")
-	rows = append(rows, mark...)
-	return rows
+	return append(rows, mark...)
 }
 
-// renderSplash paints the art up to the scan position.
+// splashLayout picks how the image is drawn for a given terminal.
 //
-// pixelWidth is how many terminal columns each pixel occupies; two keeps the
-// blocks roughly square, since a character cell is about twice as tall as it is
-// wide. It drops to one when the terminal is too narrow for that.
-func renderSplash(width, height, scan int, tagline string) string {
-	art := splashArt(height)
+// There are exactly two sizes worth using, because only these two put square
+// pixels on screen: a character cell is about twice as tall as it is wide, so a
+// full block spanning two columns is square, and a half block spanning one
+// column is square at half the scale. Anything else stretches the art.
+type splashLayout struct {
+	art []string
+	// half packs two pixel rows into each terminal row using ▀, which is what
+	// lets the animal survive on a 24-row terminal.
+	half bool
+	// pixelWidth is columns per pixel: 2 for full blocks, 1 for half blocks.
+	pixelWidth int
+}
 
+// rows is how many terminal rows the finished image occupies.
+func (l splashLayout) rows() int {
+	if l.half {
+		return (len(l.art) + 1) / 2
+	}
+	return len(l.art)
+}
+
+// steps is how many scan positions the reveal has. Scanning by pixel row rather
+// than terminal row keeps the animation the same duration at either size.
+func (l splashLayout) steps() int { return len(l.art) }
+
+func layoutFor(width, height int) splashLayout {
+	full := splashArt(true)
+	widest := widestRow(full)
+
+	// Chunky first: it is the look worth having when there is room for it.
+	if width >= widest*2+4 && height >= len(full)+4 {
+		return splashLayout{art: full, half: false, pixelWidth: 2}
+	}
+	// Half blocks halve the height, which is usually enough to keep the animal.
+	if width >= widest+2 && height >= (len(full)+1)/2+4 {
+		return splashLayout{art: full, half: true, pixelWidth: 1}
+	}
+	// Nothing fits the animal: keep the wordmark rather than clipping.
+	mark := splashArt(false)
+	if width >= widestRow(mark)*2+4 && height >= len(mark)+3 {
+		return splashLayout{art: mark, half: false, pixelWidth: 2}
+	}
+	return splashLayout{art: mark, half: true, pixelWidth: 1}
+}
+
+func widestRow(rows []string) int {
 	widest := 0
-	for _, row := range art {
+	for _, row := range rows {
 		if len(row) > widest {
 			widest = len(row)
 		}
 	}
+	return widest
+}
 
-	pixelWidth := 2
-	if widest*pixelWidth > width-2 {
-		pixelWidth = 1
+// pixelAt reads a colour key, treating anything off the grid as transparent.
+func pixelAt(art []string, x, y int) rune {
+	if y < 0 || y >= len(art) || x < 0 || x >= len(art[y]) {
+		return pxEmpty
 	}
-	block := strings.Repeat("█", pixelWidth)
-	blank := strings.Repeat(" ", pixelWidth)
+	return rune(art[y][x])
+}
+
+// renderSplash paints the image up to the scan position, measured in pixel rows.
+func renderSplash(width, height, scan int, tagline string) string {
+	layout := layoutFor(width, height)
+	art := layout.art
+	widest := widestRow(art)
 
 	settled := splashPalette(false)
 	beam := splashPalette(true)
+	// The two pixel rows behind the scan carry the beam. One alone flickers past
+	// too quickly to register as a sweep.
+	paletteFor := func(pixelRow int) map[rune]lipgloss.Style {
+		if pixelRow >= scan-2 {
+			return beam
+		}
+		return settled
+	}
 
 	visible := minInt(scan, len(art))
-	lines := make([]string, 0, visible+2)
+	var lines []string
 
-	for y := 0; y < visible; y++ {
-		palette := settled
-		// The last two revealed rows carry the beam, which reads better than a
-		// single row: one row alone flickers past too fast to register.
-		if y >= visible-2 {
-			palette = beam
-		}
-
-		var b strings.Builder
-		for _, key := range art[y] {
-			if key == pxEmpty || key == ' ' {
-				b.WriteString(blank)
-				continue
+	if layout.half {
+		for row := 0; row*2 < visible; row++ {
+			top, bottom := row*2, row*2+1
+			var b strings.Builder
+			for x := 0; x < widest; x++ {
+				topKey := pixelAt(art, x, top)
+				bottomKey := pixelAt(art, x, bottom)
+				if bottom >= visible {
+					bottomKey = pxEmpty // the scan has not reached it yet
+				}
+				b.WriteString(halfBlock(topKey, bottomKey, paletteFor(top), paletteFor(bottom)))
 			}
-			style, ok := palette[key]
-			if !ok {
-				b.WriteString(blank)
-				continue
-			}
-			b.WriteString(style.Render(block))
+			lines = append(lines, strings.TrimRight(b.String(), " "))
 		}
-		lines = append(lines, strings.TrimRight(b.String(), " "))
+	} else {
+		block := strings.Repeat("█", layout.pixelWidth)
+		blank := strings.Repeat(" ", layout.pixelWidth)
+		for y := 0; y < visible; y++ {
+			palette := paletteFor(y)
+			var b strings.Builder
+			for x := 0; x < widest; x++ {
+				key := pixelAt(art, x, y)
+				if style, ok := palette[key]; ok && key != pxEmpty {
+					b.WriteString(style.Render(block))
+				} else {
+					b.WriteString(blank)
+				}
+			}
+			lines = append(lines, strings.TrimRight(b.String(), " "))
+		}
 	}
 
 	// The tagline arrives only once the picture is complete.
@@ -260,12 +320,32 @@ func renderSplash(width, height, scan int, tagline string) string {
 	body := lipgloss.NewStyle().Width(width).Align(lipgloss.Center).
 		Render(strings.Join(lines, "\n"))
 
-	// Hold the finished image at a stable vertical position rather than letting
-	// it creep down the screen as rows appear.
-	total := len(art) + 2
-	topPad := (height - total) / 2
+	// Hold the image at a fixed position rather than letting it creep downward
+	// as rows appear.
+	topPad := (height - layout.rows() - 2) / 2
 	if topPad < 0 {
 		topPad = 0
 	}
 	return strings.Repeat("\n", topPad) + body
+}
+
+// halfBlock renders two stacked pixels into one cell. ▀ paints the upper half
+// in the foreground colour and leaves the lower half to the background, so a
+// single cell carries two independently coloured pixels.
+func halfBlock(top, bottom rune, topPalette, bottomPalette map[rune]lipgloss.Style) string {
+	topStyle, hasTop := topPalette[top]
+	bottomStyle, hasBottom := bottomPalette[bottom]
+	hasTop = hasTop && top != pxEmpty
+	hasBottom = hasBottom && bottom != pxEmpty
+
+	switch {
+	case !hasTop && !hasBottom:
+		return " "
+	case hasTop && !hasBottom:
+		return topStyle.Render("▀")
+	case !hasTop && hasBottom:
+		return bottomStyle.Render("▄")
+	default:
+		return topStyle.Background(bottomStyle.GetForeground()).Render("▀")
+	}
 }

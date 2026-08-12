@@ -110,7 +110,7 @@ func (m *Model) Init() tea.Cmd {
 // splashTotal is how many ticks the opening runs for: one per row, plus the
 // hold at the end.
 func (m *Model) splashTotal() int {
-	return len(splashArt(m.height)) + splashHold
+	return layoutFor(m.width, m.height).steps() + splashHold
 }
 
 // splashTagline names what the interface is about to connect to.

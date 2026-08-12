@@ -5,12 +5,14 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/termenv"
 )
 
 // TestSplashFinalFrame dumps the completed image so it can be eyeballed.
 func TestSplashFinalFrame(t *testing.T) {
-	art := splashArt(30)
-	out := renderSplash(90, 30, len(art)+4, "offline demo · canned replies, no network")
+	art := splashArt(true)
+	out := renderSplash(90, 34, len(art)+4, "offline demo · canned replies, no network")
 	t.Logf("FINAL FRAME\n%s", stripANSI(out))
 
 	plain := stripANSI(out)
@@ -24,11 +26,11 @@ func TestSplashFinalFrame(t *testing.T) {
 
 // The reveal has to actually be partial part-way through, or it is not a reveal.
 func TestSplashRevealsProgressively(t *testing.T) {
-	art := splashArt(30)
+	art := splashArt(true)
 
 	counts := make([]int, 0, 4)
 	for _, scan := range []int{3, 8, 16, len(art)} {
-		plain := stripANSI(renderSplash(90, 30, scan, ""))
+		plain := stripANSI(renderSplash(90, 34, scan, ""))
 		drawn := 0
 		for _, line := range strings.Split(plain, "\n") {
 			if strings.Contains(line, "█") {
@@ -72,25 +74,45 @@ func TestSplashBeamDiffersFromSettled(t *testing.T) {
 	}
 }
 
-// A short terminal drops the animal rather than clipping it.
+// A cramped terminal must still show the animal by packing two pixel rows per
+// line, and must never overflow.
 func TestSplashAdaptsToSmallTerminals(t *testing.T) {
-	tall := splashArt(40)
-	short := splashArt(12)
-
-	if len(short) >= len(tall) {
-		t.Errorf("short terminal art is %d rows, tall is %d — expected the animal dropped",
-			len(short), len(tall))
+	roomy := layoutFor(120, 44)
+	if roomy.half || roomy.pixelWidth != 2 {
+		t.Errorf("a large terminal should get chunky full blocks, got %+v", roomy)
 	}
-	// Whatever survives must still be the wordmark.
-	if len(short) != len(wordmark()) {
-		t.Errorf("short art is %d rows, want just the wordmark (%d)", len(short), len(wordmark()))
+	if len(roomy.art) != len(splashArt(true)) {
+		t.Error("a large terminal should show the animal")
 	}
 
-	// Narrow terminals fall back to one column per pixel instead of overflowing.
-	narrow := stripANSI(renderSplash(40, 30, 99, ""))
-	for _, line := range strings.Split(narrow, "\n") {
-		if len([]rune(line)) > 40 {
-			t.Errorf("line overflows a 40-column terminal (%d runes): %q", len([]rune(line)), line)
+	// 24x80 is an ordinary terminal and must not lose the animal.
+	ordinary := layoutFor(80, 24)
+	if !ordinary.half {
+		t.Errorf("a 24-row terminal should pack rows with half blocks, got %+v", ordinary)
+	}
+	if len(ordinary.art) != len(splashArt(true)) {
+		t.Errorf("a 24-row terminal lost the animal (%d rows of art)", len(ordinary.art))
+	}
+	if ordinary.rows()+2 > 24 {
+		t.Errorf("image is %d rows, which does not fit 24", ordinary.rows()+2)
+	}
+
+	// Genuinely tiny: the wordmark alone, still no overflow.
+	tiny := layoutFor(44, 10)
+	if len(tiny.art) != len(wordmark()) {
+		t.Errorf("a tiny terminal should fall back to the wordmark, got %d rows", len(tiny.art))
+	}
+
+	for _, size := range [][2]int{{80, 24}, {44, 10}, {120, 44}, {40, 12}} {
+		w, h := size[0], size[1]
+		out := stripANSI(renderSplash(w, h, 99, "tagline"))
+		for _, line := range strings.Split(out, "\n") {
+			if len([]rune(line)) > w {
+				t.Errorf("%dx%d: line overflows (%d runes)", w, h, len([]rune(line)))
+			}
+		}
+		if len(strings.Split(out, "\n")) > h {
+			t.Errorf("%dx%d: image is taller than the terminal", w, h)
 		}
 	}
 }
@@ -161,5 +183,38 @@ func TestAnyKeySkipsTheSplash(t *testing.T) {
 	// The key that skipped it must not also land in the composer.
 	if m.input.Value() != "" {
 		t.Errorf("composer = %q, want the skip key swallowed", m.input.Value())
+	}
+}
+
+// A cell holding two filled pixels must set a background as well as a
+// foreground, or it paints only its upper half and the art looks hollow.
+func TestHalfBlockPairs(t *testing.T) {
+	// Without a forced profile lipgloss strips colour when stdout is not a
+	// terminal, and every style renders identically.
+	old := lipgloss.ColorProfile()
+	lipgloss.SetColorProfile(termenv.TrueColor)
+	defer lipgloss.SetColorProfile(old)
+
+	p := splashPalette(false)
+	both := halfBlock(pxWool, pxWool, p, p)
+	topOnly := halfBlock(pxWool, pxEmpty, p, p)
+	bottomOnly := halfBlock(pxEmpty, pxWool, p, p)
+	neither := halfBlock(pxEmpty, pxEmpty, p, p)
+
+	t.Logf("both       = %q", both)
+	t.Logf("topOnly    = %q", topOnly)
+	t.Logf("bottomOnly = %q", bottomOnly)
+
+	if !strings.Contains(both, "48;2;") {
+		t.Errorf("a fully filled cell has no background, so it will look hollow: %q", both)
+	}
+	if strings.Contains(topOnly, "48;2;") {
+		t.Errorf("a half-filled cell should not set a background: %q", topOnly)
+	}
+	if !strings.Contains(bottomOnly, "▄") {
+		t.Errorf("bottom-only cell should use the lower half block: %q", bottomOnly)
+	}
+	if neither != " " {
+		t.Errorf("empty cell = %q, want a space", neither)
 	}
 }
