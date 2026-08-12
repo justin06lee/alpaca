@@ -10,9 +10,18 @@ func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, m.quit()
 	}
 
-	// Nobody should have to sit through an animation.
+	// Nobody should have to sit through an animation, but the skip cannot be
+	// hair-triggered either. A terminal answers the queries a TUI makes on
+	// startup — the background-colour probe replies with an OSC 11 sequence,
+	// for one — and those replies arrive as input a few milliseconds in. Taking
+	// any of them as "the user pressed a key" dismissed the opening instantly
+	// on every real terminal, while a bare pty, which answers nothing, looked
+	// fine. Ignoring input for the first few frames outlasts that chatter and
+	// costs a deliberate keypress nothing anyone can perceive.
 	if !m.splashDone {
-		m.splashDone = true
+		if m.splashScan >= splashGrace && isDeliberateKey(msg) {
+			m.splashDone = true
+		}
 		return m, nil
 	}
 	if m.showHelp {
@@ -140,4 +149,17 @@ func (m *Model) handlePickerKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.pick.move(1)
 	}
 	return m, nil
+}
+
+// isDeliberateKey reports whether a key looks like a person pressing something,
+// as opposed to a terminal answering a query. Escape-sequence replies decode
+// into assorted control keys, so the skip only honours the handful of keys
+// somebody would actually reach for to dismiss a splash.
+func isDeliberateKey(msg tea.KeyMsg) bool {
+	switch msg.Type {
+	case tea.KeyRunes, tea.KeySpace, tea.KeyEnter, tea.KeyEsc:
+		return true
+	default:
+		return false
+	}
 }

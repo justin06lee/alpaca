@@ -53,6 +53,11 @@ const splashInterval = 35 * time.Millisecond
 // splashHold is how many ticks the finished image stays up.
 const splashHold = 12
 
+// splashGrace is how many frames must pass before a keypress can dismiss the
+// opening. It exists to outlast the replies a terminal sends to a TUI's startup
+// queries, which would otherwise skip it before it is visible.
+const splashGrace = 8
+
 func splashTick() tea.Cmd {
 	return tea.Tick(splashInterval, func(t time.Time) tea.Msg { return splashTickMsg(t) })
 }

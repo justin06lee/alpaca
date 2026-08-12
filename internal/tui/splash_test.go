@@ -167,22 +167,50 @@ func TestSplashGivesWayToTheChat(t *testing.T) {
 	}
 }
 
-func TestAnyKeySkipsTheSplash(t *testing.T) {
+func TestSplashSkipIgnoresStartupChatter(t *testing.T) {
 	m := newRenderedModel(t)
 	m.splashDone, m.splashScan = false, 0
+
+	// A terminal answers a TUI's startup queries within a few milliseconds, and
+	// those replies arrive as input. They must not dismiss the opening before
+	// anyone has seen it.
 	m.Update(splashTickMsg{})
-
+	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r', 'g', 'b'}})
 	if m.splashDone {
-		t.Fatal("splash finished on its own too early")
+		t.Fatal("input during the grace window skipped the opening")
 	}
-	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'x'}})
 
-	if !m.splashDone {
-		t.Error("a keypress did not skip the opening")
+	// Sequence replies also decode into assorted control keys, which are not
+	// something a person would press to dismiss a splash.
+	for i := 0; i < splashGrace+2; i++ {
+		m.Update(splashTickMsg{})
 	}
-	// The key that skipped it must not also land in the composer.
+	m.Update(tea.KeyMsg{Type: tea.KeyCtrlL})
+	if m.splashDone {
+		t.Error("a control key skipped the opening; only deliberate keys should")
+	}
+
+	// A real keypress, after the grace window, does skip it.
+	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'x'}})
+	if !m.splashDone {
+		t.Error("a deliberate keypress after the grace window did not skip the opening")
+	}
 	if m.input.Value() != "" {
 		t.Errorf("composer = %q, want the skip key swallowed", m.input.Value())
+	}
+}
+
+func TestIsDeliberateKey(t *testing.T) {
+	deliberate := []tea.KeyType{tea.KeyRunes, tea.KeySpace, tea.KeyEnter, tea.KeyEsc}
+	for _, kt := range deliberate {
+		if !isDeliberateKey(tea.KeyMsg{Type: kt}) {
+			t.Errorf("%v should count as a deliberate keypress", kt)
+		}
+	}
+	for _, kt := range []tea.KeyType{tea.KeyCtrlL, tea.KeyF1, tea.KeyUp, tea.KeyCtrlA} {
+		if isDeliberateKey(tea.KeyMsg{Type: kt}) {
+			t.Errorf("%v should not dismiss the opening", kt)
+		}
 	}
 }
 
