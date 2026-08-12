@@ -21,6 +21,7 @@ func runChat(args []string) error {
 		fmt.Fprint(os.Stderr, strings.TrimLeft(`
 alpaca chat — open the chat interface
 
+  --demo               open the interface with no server, using canned replies
   --profile NAME       which linked server to use (default: the default one)
   --model NAME         start with this model
   --resume             continue the most recent chat instead of starting fresh
@@ -30,6 +31,7 @@ alpaca chat — open the chat interface
 
 `, "\n"))
 	}
+	demo := fs.Bool("demo", false, "")
 	profileName := fs.String("profile", "", "")
 	model := fs.String("model", "", "")
 	resume := fs.Bool("resume", false, "")
@@ -38,6 +40,10 @@ alpaca chat — open the chat interface
 	noDiscovery := fs.Bool("no-discovery", false, "")
 	if err := fs.Parse(args); err != nil {
 		return err
+	}
+
+	if *demo {
+		return runDemoChat(*model)
 	}
 
 	profiles, profile, err := loadProfile(*profileName)
@@ -143,4 +149,79 @@ func connectProfile(name string, opts client.Options) (*config.Profiles, *client
 // contextWithTimeout is a small helper for the one-shot commands.
 func contextWithTimeout(d time.Duration) (context.Context, context.CancelFunc) {
 	return context.WithTimeout(context.Background(), d)
+}
+
+// runDemoChat opens the interface against an in-process canned server, so it
+// can be looked at with no gateway, no ollama, and no network.
+//
+// Sessions go to a throwaway directory rather than the real one: poking at a
+// demo should not leave fake conversations mixed in with genuine history.
+func runDemoChat(model string) error {
+	c, stop, err := client.NewDemo()
+	if err != nil {
+		return err
+	}
+	defer stop()
+
+	sandbox, err := os.MkdirTemp("", "alpaca-demo-*")
+	if err != nil {
+		return fmt.Errorf("create demo sandbox: %w", err)
+	}
+	defer os.RemoveAll(sandbox)
+
+	// ALPACA_HOME is what config.Dir honours, so pointing it at the sandbox
+	// redirects the session store without threading a path through the TUI.
+	previous, hadPrevious := os.LookupEnv("ALPACA_HOME")
+	os.Setenv("ALPACA_HOME", sandbox)
+	defer func() {
+		if hadPrevious {
+			os.Setenv("ALPACA_HOME", previous)
+		} else {
+			os.Unsetenv("ALPACA_HOME")
+		}
+	}()
+
+	store, err := session.NewStore()
+	if err != nil {
+		return err
+	}
+	seedDemoSessions(store)
+
+	sess := session.New(c.Profile().Model, "demo")
+	if model != "" {
+		sess.Model = model
+	}
+
+	profiles := &config.Profiles{Entries: map[string]*config.Profile{}}
+	program := tea.NewProgram(
+		tui.New(c, store, profiles, "demo", sess),
+		tea.WithAltScreen(),
+	)
+	if _, err := program.Run(); err != nil {
+		return fmt.Errorf("chat interface: %w", err)
+	}
+	return nil
+}
+
+// seedDemoSessions puts a couple of conversations in the sandbox so the saved
+// chats picker has something to show.
+func seedDemoSessions(store *session.Store) {
+	samples := []struct {
+		prompt, reply string
+		age           time.Duration
+	}{
+		{"How do I reverse a string in Go?",
+			"Convert to `[]rune` first, then swap from both ends inward.", 2 * time.Hour},
+		{"Explain the difference between a slice and an array.",
+			"An array has a fixed length that is part of its type. A slice is a view " +
+				"onto an array: pointer, length, capacity.", 26 * time.Hour},
+	}
+
+	for _, s := range samples {
+		sess := session.New("llama3.2:latest", "demo")
+		sess.Append(client.Message{Role: client.RoleUser, Content: s.prompt})
+		sess.Append(client.Message{Role: client.RoleAssistant, Content: s.reply})
+		sess.Updated = time.Now().Add(-s.age)
+		_ = store.Save(sess)
+	}
 }

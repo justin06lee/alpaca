@@ -42,6 +42,8 @@ const (
 	SourceMDNS   Source = "mdns"
 	SourceHint   Source = "hint"
 	SourcePublic Source = "public"
+	// SourceDemo is the in-process canned server used by `alpaca chat --demo`.
+	SourceDemo Source = "demo"
 )
 
 // Route is the connection that won the race.

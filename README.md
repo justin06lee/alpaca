@@ -43,6 +43,23 @@ That is the whole setup. The connect string carries the API key, the pinned
 certificate, and every route to the server, so there is nothing else to
 configure and nothing to re-enter later.
 
+### Trying it without a server
+
+To see what the interface looks like before setting any of that up:
+
+```sh
+alpaca chat --demo
+```
+
+That runs the real chat interface against a canned server inside the binary —
+no gateway, no Ollama, no network. Streaming, markdown, the model picker, saved
+chats, and the web-search status line all behave as they normally do; only the
+replies are fake. Ask for **code** or **markdown**, or mention **search**, to see
+different parts of the renderer.
+
+Demo sessions are written to a temporary directory and deleted on exit, so
+poking at it never mixes fake conversations into your real history.
+
 ## How it finds the server
 
 You paste one string; after that the address is alpaca's problem, not yours. On
@@ -225,6 +242,7 @@ where you left off.
 alpaca serve                  start the API and print a connect string
 alpaca link <connect-string>  save a server (also reads stdin)
 alpaca chat                   open the chat interface
+alpaca chat --demo            open it with no server, using canned replies
 alpaca ask "question"         one-shot answer on stdout
 alpaca models                 list models on the server
 alpaca status                 show which servers are linked and reachable

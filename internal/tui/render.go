@@ -232,17 +232,20 @@ func (m *Model) header() string {
 	left := styleHeader.Render("alpaca")
 
 	route := m.client.Route()
-	transport := "lan"
-	if route.TLS {
-		transport = "tls"
+	var meta string
+	if route.Source == client.SourceDemo {
+		// No connection exists, so reporting a transport and a latency would be
+		// theatre. Say plainly what this is.
+		meta = fmt.Sprintf("%s · offline demo", m.sess.Model)
+	} else {
+		transport := "lan"
+		if route.TLS {
+			transport = "tls"
+		}
+		meta = fmt.Sprintf("%s · %s · %s %s",
+			m.sess.Model, m.profileName, transport,
+			route.Latency.Round(time.Millisecond))
 	}
-
-	meta := fmt.Sprintf("%s · %s · %s %s",
-		m.sess.Model,
-		m.profileName,
-		transport,
-		route.Latency.Round(time.Millisecond),
-	)
 
 	right := styleHeaderMeta.Render(meta)
 	gap := m.width - lipgloss.Width(left) - lipgloss.Width(right)
