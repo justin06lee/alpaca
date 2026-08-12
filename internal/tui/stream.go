@@ -51,12 +51,16 @@ type (
 	}
 )
 
-// splashInterval is one scanline. Slow enough to read as a sweep, quick enough
-// that the whole reveal is over before it becomes something to sit through.
-const splashInterval = 35 * time.Millisecond
+// splashInterval is one scanline. The sweep wants to be quick: the image should
+// be complete and sitting there well before anything else is ready, rather than
+// still drawing itself when the connection lands.
+const splashInterval = 16 * time.Millisecond
 
-// splashHold is how many ticks the finished image stays up.
-const splashHold = 12
+// splashMinTicks keeps the finished image on screen for about a second and a
+// half even when everything behind it is instant. Without a floor, a warm start
+// finishes the reveal and hands over in the same breath, which reads as a flash
+// rather than a splash.
+const splashMinTicks = 95
 
 // splashGrace is how many frames must pass before a keypress can dismiss the
 // opening. It exists to outlast the replies a terminal sends to a TUI's startup

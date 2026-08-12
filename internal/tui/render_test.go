@@ -48,10 +48,9 @@ func newRenderedModel(t *testing.T) *Model {
 	sess := session.New("llama3.2:latest", "workshop")
 	m := New(Connected(c), store, profiles, "workshop", sess)
 	m.Update(tea.WindowSizeMsg{Width: 96, Height: 28})
-	// These tests exercise the chat surface, so land the connection and step
-	// past the opening animation the way the runtime would.
-	m.Update(connectedMsg{client: c})
-	m.splashDone = true
+	// These tests exercise the chat surface, so run the opening through to the
+	// end first.
+	finishSplash(t, m, c)
 	return m
 }
 
@@ -207,4 +206,18 @@ func maxLineWidth(s string) int {
 		}
 	}
 	return longest
+}
+
+// finishSplash drives the opening to completion the way the runtime does,
+// rather than forcing the flag, so the work the model defers while the opening
+// owns the screen actually happens.
+func finishSplash(t *testing.T, m *Model, c *client.Client) {
+	t.Helper()
+	m.Update(connectedMsg{client: c})
+	for i := 0; i < m.splashTotal()+4 && !m.splashDone; i++ {
+		m.Update(splashTickMsg{})
+	}
+	if !m.splashDone {
+		t.Fatal("opening never finished")
+	}
 }

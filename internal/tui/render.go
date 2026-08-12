@@ -86,9 +86,16 @@ func newRenderer(width int) (*glamour.TermRenderer, error) {
 
 // renderMarkdown formats assistant output, falling back to the raw text if the
 // renderer fails — a formatting problem must never swallow the model's answer.
+//
+// The renderer is built on first use rather than on resize, keeping glamour's
+// terminal-background query off the startup path.
 func (m *Model) renderMarkdown(text string) string {
 	if m.renderer == nil {
-		return text
+		renderer, err := newRenderer(m.contentWidth())
+		if err != nil {
+			return text
+		}
+		m.renderer = renderer
 	}
 	out, err := m.renderer.Render(text)
 	if err != nil {

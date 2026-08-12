@@ -24,6 +24,8 @@ func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		// with no server behind it.
 		if m.client != nil && m.splashScan >= splashGrace && isDeliberateKey(msg) {
 			m.splashDone = true
+			m.rebuildCache()
+			m.refreshViewport(true)
 		}
 		return m, nil
 	}

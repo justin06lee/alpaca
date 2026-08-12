@@ -128,10 +128,10 @@ func (m *Model) Init() tea.Cmd {
 // it properly instead of the interface swallowing it.
 func (m *Model) Err() error { return m.connectErr }
 
-// splashTotal is how many ticks the opening runs for: one per row, plus the
-// hold at the end.
+// splashTotal is how many ticks the opening runs for: long enough to draw every
+// row, and never shorter than the minimum the image stays up for.
 func (m *Model) splashTotal() int {
-	return layoutFor(m.width, m.height).steps() + splashHold
+	return maxInt(layoutFor(m.width, m.height).steps(), splashMinTicks)
 }
 
 // splashTagline names what the interface is about to connect to.
@@ -186,6 +186,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// nothing behind it yet.
 		if m.splashScan > m.splashTotal() && m.client != nil {
 			m.splashDone = true
+			// Deferred while the opening had the screen; do it now.
+			m.rebuildCache()
+			m.refreshViewport(true)
 			return m, nil
 		}
 		return m, splashTick()
@@ -243,13 +246,15 @@ func (m *Model) resize(width, height int) tea.Cmd {
 	}
 	m.input.SetWidth(width)
 
-	// The markdown renderer is width-bound, so it and the whole render cache
-	// have to be rebuilt whenever the terminal changes size.
-	if renderer, err := newRenderer(m.contentWidth()); err == nil {
-		m.renderer = renderer
+	// The markdown renderer is width-bound, so it is discarded here and rebuilt
+	// on demand. Building it eagerly would put it on the startup path, and
+	// glamour's auto style asks the terminal for its background colour, which
+	// means waiting on a reply before the opening can paint.
+	m.renderer = nil
+	if m.splashDone {
+		m.rebuildCache()
+		m.refreshViewport(true)
 	}
-	m.rebuildCache()
-	m.refreshViewport(true)
 
 	return nil
 }
