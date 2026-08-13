@@ -2,6 +2,7 @@ package portmap
 
 import (
 	"context"
+	"errors"
 	"net"
 	"os"
 	"testing"
@@ -92,5 +93,107 @@ func TestLiveMapPort(t *testing.T) {
 	}
 	if m.ExternalPort == 0 {
 		t.Error("mapping has no external port")
+	}
+}
+
+// fakeIGD implements upnpConn in memory, so the UPnP mapping logic — lease
+// fallback, endpoint wiring, renew and release — is tested without a router.
+type fakeIGD struct {
+	externalIP   string
+	rejectFinite bool
+	addCalls     []uint32 // lease durations seen
+	deleted      []uint16
+	localAddr    net.IP
+}
+
+func (f *fakeIGD) GetExternalIPAddressCtx(context.Context) (string, error) {
+	return f.externalIP, nil
+}
+
+func (f *fakeIGD) AddPortMappingCtx(_ context.Context, _ string, externalPort uint16, _ string,
+	_ uint16, _ string, _ bool, _ string, lease uint32) error {
+	f.addCalls = append(f.addCalls, lease)
+	if f.rejectFinite && lease != 0 {
+		return errors.New("only permanent leases supported")
+	}
+	return nil
+}
+
+func (f *fakeIGD) DeletePortMappingCtx(_ context.Context, _ string, externalPort uint16, _ string) error {
+	f.deleted = append(f.deleted, externalPort)
+	return nil
+}
+
+func (f *fakeIGD) LocalAddr() net.IP { return f.localAddr }
+
+func TestMapViaWiresTheMapping(t *testing.T) {
+	igd := &fakeIGD{externalIP: "203.0.113.9", localAddr: net.ParseIP("192.168.1.20")}
+
+	m, err := mapVia(context.Background(), igd, 8080)
+	if err != nil {
+		t.Fatalf("mapVia: %v", err)
+	}
+	if got := m.Endpoint(); got != "203.0.113.9:8080" {
+		t.Errorf("Endpoint = %q", got)
+	}
+	if m.Method != "UPnP" {
+		t.Errorf("Method = %q", m.Method)
+	}
+	if len(igd.addCalls) != 1 || igd.addCalls[0] == 0 {
+		t.Errorf("addCalls = %v, want one finite-lease request", igd.addCalls)
+	}
+
+	m.Release()
+	if len(igd.deleted) != 1 || igd.deleted[0] != 8080 {
+		t.Errorf("Release deleted %v, want [8080]", igd.deleted)
+	}
+}
+
+// Plenty of routers reject any finite lease; the retry with 0 is what makes
+// mapping work on that hardware.
+func TestMapViaFallsBackToPermanentLease(t *testing.T) {
+	igd := &fakeIGD{externalIP: "203.0.113.9", localAddr: net.ParseIP("192.168.1.20"), rejectFinite: true}
+
+	if _, err := mapVia(context.Background(), igd, 8080); err != nil {
+		t.Fatalf("mapVia: %v", err)
+	}
+	if len(igd.addCalls) != 2 || igd.addCalls[1] != 0 {
+		t.Errorf("addCalls = %v, want a finite attempt then a permanent one", igd.addCalls)
+	}
+}
+
+func TestMapViaRejectsUnparseableExternalIP(t *testing.T) {
+	igd := &fakeIGD{externalIP: "not-an-ip", localAddr: net.ParseIP("192.168.1.20")}
+	if _, err := mapVia(context.Background(), igd, 8080); err == nil {
+		t.Fatal("mapVia accepted an unparseable external IP")
+	}
+}
+
+func TestMapViaNeedsALocalAddress(t *testing.T) {
+	igd := &fakeIGD{externalIP: "203.0.113.9"}
+	if _, err := mapVia(context.Background(), igd, 8080); err == nil {
+		t.Fatal("mapVia proceeded without knowing which local address faces the gateway")
+	}
+}
+
+// A DHCP renewal can move the WAN address while the mapping stays up; renew
+// must report the address the router holds now, not the one from startup.
+func TestRenewReportsAMovedExternalIP(t *testing.T) {
+	igd := &fakeIGD{externalIP: "203.0.113.9", localAddr: net.ParseIP("192.168.1.20")}
+	m, err := mapVia(context.Background(), igd, 8080)
+	if err != nil {
+		t.Fatalf("mapVia: %v", err)
+	}
+
+	igd.externalIP = "198.51.100.7"
+	ip, port, err := m.renew(context.Background())
+	if err != nil {
+		t.Fatalf("renew: %v", err)
+	}
+	if !ip.Equal(net.ParseIP("198.51.100.7")) {
+		t.Errorf("renew reported %v, want the router's current address", ip)
+	}
+	if port != 8080 {
+		t.Errorf("renew reported port %d, want 8080", port)
 	}
 }
