@@ -129,10 +129,9 @@ func (s *Server) resolveToolCalls(ctx context.Context, req *ollama.ChatRequest, 
 	return rounds
 }
 
-// prepareTools attaches the search tool when search is on and the caller did
-// not disable it for this request.
-func (s *Server) prepareTools(req *ollama.ChatRequest, wantSearch bool) {
-	if s.searchEnabled() && wantSearch {
+// prepareTools attaches the search tool when the gateway has a provider.
+func (s *Server) prepareTools(req *ollama.ChatRequest) {
+	if s.searchEnabled() {
 		req.Tools = append(req.Tools, searchTool())
 	}
 }
@@ -149,6 +148,10 @@ func (s *Server) maxRounds() int {
 const (
 	defaultSearchResults = 5
 	defaultSearchRounds  = 3
+	// maxSearchLimit caps what a client may request through /api/search. The
+	// provider fans out one request regardless, but an unbounded limit turns
+	// the response payload over to the client's imagination.
+	maxSearchLimit = 25
 )
 
 // handleSearch exposes the search provider directly.
@@ -176,6 +179,12 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.Limit <= 0 {
 		req.Limit = s.opts.SearchResults
+	}
+	if req.Limit <= 0 {
+		req.Limit = defaultSearchResults
+	}
+	if req.Limit > maxSearchLimit {
+		req.Limit = maxSearchLimit
 	}
 
 	ctx, cancel := context.WithTimeout(r.Context(), searchTimeout)

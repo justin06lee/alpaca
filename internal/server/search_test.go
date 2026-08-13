@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 
@@ -18,10 +19,11 @@ import (
 
 // stubSearch records queries and returns canned results.
 type stubSearch struct {
-	queries atomic.Value // []string
-	results []search.Result
-	err     error
-	calls   atomic.Int32
+	queries   atomic.Value // []string
+	results   []search.Result
+	err       error
+	calls     atomic.Int32
+	lastLimit atomic.Int32
 }
 
 func newStubSearch(results ...search.Result) *stubSearch {
@@ -33,6 +35,7 @@ func newStubSearch(results ...search.Result) *stubSearch {
 func (s *stubSearch) Name() string { return "stub" }
 func (s *stubSearch) Search(_ context.Context, q string, limit int) ([]search.Result, error) {
 	s.calls.Add(1)
+	s.lastLimit.Store(int32(limit))
 	s.queries.Store(append(s.queries.Load().([]string), q))
 	if s.err != nil {
 		return nil, s.err
@@ -42,8 +45,11 @@ func (s *stubSearch) Search(_ context.Context, q string, limit int) ([]search.Re
 func (s *stubSearch) seen() []string { return s.queries.Load().([]string) }
 
 // scriptedDaemon replies with a different scripted turn on each call, so a tool
-// round and the answer that follows it can both be driven.
+// round and the answer that follows it can both be driven. The mutex matters
+// even though requests in these tests arrive sequentially: the handler runs on
+// the server's goroutine, and appending unlocked would be a latent race.
 func scriptedDaemon(t *testing.T, turns ...string) (http.HandlerFunc, *[]map[string]any) {
+	var mu sync.Mutex
 	var seen []map[string]any
 	var n atomic.Int32
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -53,7 +59,9 @@ func scriptedDaemon(t *testing.T, turns ...string) (http.HandlerFunc, *[]map[str
 		}
 		var body map[string]any
 		json.NewDecoder(r.Body).Decode(&body)
+		mu.Lock()
 		seen = append(seen, body)
+		mu.Unlock()
 
 		i := int(n.Add(1)) - 1
 		if i >= len(turns) {
@@ -430,5 +438,134 @@ func TestInfoReportsSearchState(t *testing.T) {
 	json.NewDecoder(resp.Body).Decode(&info)
 	if !info.Search.Enabled || info.Search.Provider != "stub" {
 		t.Errorf("search info = %+v", info.Search)
+	}
+}
+
+// proseThenToolCallTurn is a daemon reply that streams prose and then asks for
+// a search anyway.
+func proseThenToolCallTurn(query string, words ...string) string {
+	var b strings.Builder
+	for _, word := range words {
+		fmt.Fprintf(&b, `{"message":{"role":"assistant","content":%q},"done":false}`+"\n", word)
+	}
+	fmt.Fprintf(&b, `{"message":{"role":"assistant","content":"","tool_calls":`+
+		`[{"function":{"name":"web_search","arguments":{"query":%q}}}]},"done":false}`+"\n", query)
+	b.WriteString(`{"message":{"content":""},"done":true,"done_reason":"stop"}` + "\n")
+	return b.String()
+}
+
+// Once the model has produced prose, that prose is the answer — on both paths.
+// The buffered path used to discard it and run another round, so the same
+// request could return different replies depending on the stream flag.
+func TestBufferedPathKeepsProseEmittedAlongsideAToolCall(t *testing.T) {
+	provider := newStubSearch(search.Result{Title: "t", URL: "https://x", Snippet: "s"})
+	handler, seen := scriptedDaemon(t,
+		proseThenToolCallTurn("late query", "The ", "answer."),
+		answerTurn("should ", "never ", "run"),
+	)
+	base := newSearchGateway(t, provider, handler)
+
+	resp := do(t, http.MethodPost, base+"/v1/chat/completions", testKey,
+		`{"model":"m","messages":[{"role":"user","content":"q"}]}`)
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d", resp.StatusCode)
+	}
+
+	var body struct {
+		Choices []struct {
+			Message struct {
+				Content string `json:"content"`
+			} `json:"message"`
+		} `json:"choices"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if got := body.Choices[0].Message.Content; got != "The answer." {
+		t.Errorf("content = %q, want the prose the model produced", got)
+	}
+	if provider.calls.Load() != 0 {
+		t.Errorf("search ran %d times after the model already answered", provider.calls.Load())
+	}
+	if len(*seen) != 1 {
+		t.Errorf("daemon saw %d generations, want 1", len(*seen))
+	}
+}
+
+// A frame can carry prose and a tool call together; the prose must reach the
+// stream rather than being consumed with the call.
+func TestStreamKeepsProseCarriedInAToolCallFrame(t *testing.T) {
+	provider := newStubSearch()
+	oneFrame := `{"message":{"role":"assistant","content":"Partial thought","tool_calls":` +
+		`[{"function":{"name":"web_search","arguments":{"query":"x"}}}]},"done":false}` + "\n" +
+		`{"message":{"content":""},"done":true,"done_reason":"stop"}` + "\n"
+	handler, _ := scriptedDaemon(t, oneFrame)
+	base := newSearchGateway(t, provider, handler)
+
+	resp := do(t, http.MethodPost, base+"/v1/chat/completions", testKey,
+		`{"model":"m","stream":true,"messages":[{"role":"user","content":"q"}]}`)
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d", resp.StatusCode)
+	}
+
+	var content strings.Builder
+	for _, ev := range sseEvents(t, resp.Body) {
+		if ev == "[DONE]" {
+			continue
+		}
+		var chunk struct {
+			Choices []struct {
+				Delta struct {
+					Content string `json:"content"`
+				} `json:"delta"`
+			} `json:"choices"`
+		}
+		if err := json.Unmarshal([]byte(ev), &chunk); err != nil {
+			t.Fatalf("bad chunk %q: %v", ev, err)
+		}
+		for _, c := range chunk.Choices {
+			content.WriteString(c.Delta.Content)
+		}
+	}
+	if !strings.Contains(content.String(), "Partial thought") {
+		t.Errorf("stream dropped the prose that shared a frame with the tool call; got %q", content.String())
+	}
+}
+
+// The gateway does not implement tool-call passthrough; this pins the current
+// contract — a client-supplied tools field is dropped entirely rather than
+// half-forwarded — so future passthrough support has to change it deliberately.
+func TestClientSuppliedToolsAreDropped(t *testing.T) {
+	handler, seen := scriptedDaemon(t, answerTurn("hi"))
+	base := newSearchGateway(t, nil, handler)
+
+	resp := do(t, http.MethodPost, base+"/v1/chat/completions", testKey,
+		`{"model":"m","messages":[{"role":"user","content":"x"}],`+
+			`"tools":[{"type":"function","function":{"name":"my_tool"}}],"tool_choice":"auto"}`)
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d", resp.StatusCode)
+	}
+	if _, has := (*seen)[0]["tools"]; has {
+		t.Error("client-supplied tools reached the daemon; passthrough is not implemented")
+	}
+}
+
+// /api/search must not hand the response payload over to the client's choice
+// of limit.
+func TestSearchLimitIsClamped(t *testing.T) {
+	provider := newStubSearch()
+	handler, _ := scriptedDaemon(t, answerTurn("x"))
+	base := newSearchGateway(t, provider, handler)
+
+	resp := do(t, http.MethodPost, base+"/api/search", testKey, `{"query":"q","limit":100000}`)
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d", resp.StatusCode)
+	}
+	if got := provider.lastLimit.Load(); got != maxSearchLimit {
+		t.Errorf("provider received limit %d, want it clamped to %d", got, maxSearchLimit)
 	}
 }

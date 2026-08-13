@@ -112,19 +112,6 @@ type ToolCallFunction struct {
 	Arguments json.RawMessage `json:"arguments,omitempty"`
 }
 
-// ArgumentsJSON renders the arguments as the JSON string OpenAI clients expect.
-func (f ToolCallFunction) ArgumentsJSON() string {
-	if len(f.Arguments) == 0 {
-		return "{}"
-	}
-	// Already a JSON string: hand it back verbatim.
-	var asString string
-	if json.Unmarshal(f.Arguments, &asString) == nil {
-		return asString
-	}
-	return string(f.Arguments)
-}
-
 // StringArg pulls one string field out of the arguments object.
 func (f ToolCallFunction) StringArg(name string) (string, bool) {
 	raw := f.Arguments

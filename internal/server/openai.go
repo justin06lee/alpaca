@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -287,7 +288,7 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// The model can only search if the gateway was started with a provider.
-	s.prepareTools(&ollamaReq, true)
+	s.prepareTools(&ollamaReq)
 
 	if req.Stream {
 		s.streamChat(w, r, req, ollamaReq)
@@ -301,8 +302,10 @@ func (s *Server) bufferChat(w http.ResponseWriter, r *http.Request, req ollama.C
 	var body strings.Builder
 	var final ollama.Chunk
 
-	// Tool rounds run to completion before anything is returned; only the last
-	// generation's text is the answer.
+	// Tool rounds run to completion before anything is returned. The first
+	// generation that produces prose is the answer: the streaming path cannot
+	// take back tokens it has already sent, so buffering must stop at the same
+	// point or the two paths would return different replies to the same request.
 	for round := 0; ; round++ {
 		lastRound := round >= s.maxRounds()
 		if lastRound {
@@ -311,7 +314,6 @@ func (s *Server) bufferChat(w http.ResponseWriter, r *http.Request, req ollama.C
 		}
 
 		var calls []ollama.ToolCall
-		body.Reset()
 
 		err := s.opts.Ollama.Chat(r.Context(), req, func(ch ollama.Chunk) error {
 			if len(ch.ToolCalls) > 0 {
@@ -328,7 +330,7 @@ func (s *Server) bufferChat(w http.ResponseWriter, r *http.Request, req ollama.C
 			return
 		}
 
-		if len(calls) == 0 || lastRound {
+		if len(calls) == 0 || body.Len() > 0 || lastRound {
 			break
 		}
 		s.resolveToolCalls(r.Context(), &req, calls)
@@ -414,13 +416,15 @@ func (s *Server) streamChat(w http.ResponseWriter, r *http.Request, req chatComp
 		producedContent := false
 
 		err = s.opts.Ollama.Chat(r.Context(), ollamaReq, func(ch ollama.Chunk) error {
-			// A tool call arrives complete in its own frame, and a turn that
-			// calls a tool carries no prose. Collecting it without starting the
-			// stream is what lets a search happen invisibly before the first
-			// token of the real answer.
+			// A tool call normally arrives complete in its own frame with no
+			// prose. Collecting it without starting the stream is what lets a
+			// search happen invisibly before the first token of the real answer.
+			// Deliberately no early return: a frame that carries prose alongside
+			// the call falls through so the prose is streamed rather than lost —
+			// and prose ends the tool loop below, exactly as it does when it
+			// arrives in a frame of its own.
 			if len(ch.ToolCalls) > 0 && !producedContent && !lastRound {
 				calls = append(calls, ch.ToolCalls...)
-				return nil
 			}
 			if ch.Done {
 				final = ch
@@ -593,6 +597,13 @@ func decodeBody(w http.ResponseWriter, r *http.Request, v any) bool {
 			return false
 		}
 		writeError(w, http.StatusBadRequest, "could not parse request body: "+err.Error(), "invalid_json")
+		return false
+	}
+	// A second JSON document after the first is a malformed request; reading
+	// only the first and silently discarding the rest would mask client bugs.
+	if err := dec.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
+		writeError(w, http.StatusBadRequest,
+			"request body contains data after the JSON document", "invalid_json")
 		return false
 	}
 	return true
