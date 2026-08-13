@@ -247,3 +247,24 @@ func TestStoreListOnMissingDirectory(t *testing.T) {
 		t.Errorf("List() = %d sessions, want 0", len(sessions))
 	}
 }
+
+// Titles are measured in runes: slicing a CJK or emoji prompt at a byte offset
+// would split a rune and corrupt the title.
+func TestDeriveTitleIsRuneSafe(t *testing.T) {
+	prompt := strings.Repeat("日本語のテキスト", 20)
+	s := New("m", "box")
+	s.Append(client.Message{Role: client.RoleUser, Content: prompt})
+
+	title := s.Title
+	if !strings.HasSuffix(title, "…") {
+		t.Fatalf("long prompt did not get truncated: %q", title)
+	}
+	for _, r := range title {
+		if r == '�' {
+			t.Fatalf("title contains a replacement character — a rune was split: %q", title)
+		}
+	}
+	if n := len([]rune(strings.TrimSuffix(title, "…"))); n > 48 {
+		t.Errorf("title is %d runes, want at most 48", n)
+	}
+}

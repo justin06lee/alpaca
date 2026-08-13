@@ -260,7 +260,12 @@ func (m *Model) quit() tea.Cmd {
 	}
 	_ = m.store.Save(m.sess)
 	m.rememberModel()
-	_ = m.client.RememberRoute(m.profiles)
+	// ctrl+c works from anywhere — including the opening, while the
+	// connection is still being raced. There is no client yet then, and
+	// nothing worth remembering about a route that never existed.
+	if m.client != nil {
+		_ = m.client.RememberRoute(m.profiles)
+	}
 	return tea.Quit
 }
 

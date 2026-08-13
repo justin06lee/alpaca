@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/charmbracelet/lipgloss"
 	"github.com/justin06lee/alpaca/internal/client"
 	"github.com/justin06lee/alpaca/internal/config"
 	"github.com/justin06lee/alpaca/internal/session"
@@ -444,11 +445,28 @@ func TestTruncate(t *testing.T) {
 		t.Errorf("truncate did not leave a short string alone: %q", got)
 	}
 	got := truncate("hello world this is long", 10)
-	if len([]rune(got)) > 10 {
+	if lipgloss.Width(got) > 10 {
 		t.Errorf("truncate(%q) = %q, longer than the limit", "hello world this is long", got)
 	}
 	if !strings.HasSuffix(got, "…") {
 		t.Errorf("truncate = %q, want an ellipsis marker", got)
+	}
+}
+
+// Status text arrives at truncate already styled. Cutting by rune count used to
+// slice escape sequences in half, spilling raw fragments into the frame.
+func TestTruncateIsANSIAware(t *testing.T) {
+	styled := "\x1b[38;5;208mzero zero zero zero zero\x1b[0m plain tail"
+	got := truncate(styled, 8)
+
+	if w := lipgloss.Width(got); w > 8 {
+		t.Errorf("visible width = %d, want <= 8 (%q)", w, got)
+	}
+	if !strings.Contains(got, "…") {
+		t.Errorf("truncate = %q, want the ellipsis marker", got)
+	}
+	if strings.Contains(got, "\x1b") && !strings.Contains(got, "\x1b[38;5;208m") {
+		t.Errorf("truncate cut an escape sequence in half: %q", got)
 	}
 }
 
