@@ -69,6 +69,17 @@ type Model struct {
 	splashScan int
 	splashDone bool
 
+	// greeting is picked once per session so an empty screen does not reshuffle
+	// its own wording on every repaint.
+	greeting string
+	// sliding tracks the composer's journey from the middle of an empty screen
+	// down to its dock, which happens once, on the first message.
+	sliding   bool
+	slideStep int
+	// thinkingIdx rotates the status shown while waiting on the first token.
+	thinkingIdx  int
+	thinkingStep int
+
 	streaming bool
 	streamBuf string
 	// streamNotes records what the gateway did mid-turn, e.g. a web search.
@@ -93,8 +104,11 @@ type Model struct {
 // New builds the chat interface. The connector runs while the opening plays.
 func New(connect Connector, store *session.Store, profiles *config.Profiles, profileName string, sess *session.Session) *Model {
 	input := textarea.New()
-	input.Placeholder = "Send a message…  (enter to send, ctrl+j for a newline)"
+	input.Placeholder = "Ask anything…"
 	input.ShowLineNumbers = false
+	// The composer already has a border; the textarea's own prompt bar would be
+	// a second frame inside the first.
+	input.Prompt = ""
 	input.CharLimit = 0 // long pasted prompts are legitimate
 	input.SetHeight(inputHeight)
 	input.Focus()
@@ -106,7 +120,8 @@ func New(connect Connector, store *session.Store, profiles *config.Profiles, pro
 	spin.Spinner = spinner.Dot
 
 	return &Model{
-		connect: connect,
+		connect:  connect,
+		greeting: randomGreeting(),
 		// A size is assumed until the terminal reports one, so the opening can
 		// draw immediately instead of showing a "starting…" placeholder.
 		width:       80,
@@ -176,6 +191,18 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.client = msg.client
 		return m, loadModels(m.client)
 
+	case slideTickMsg:
+		if !m.sliding {
+			return m, nil
+		}
+		m.slideStep++
+		if m.slideStep >= slideTicks {
+			m.sliding = false
+			m.slideStep = slideTicks
+			return m, nil
+		}
+		return m, slideTick()
+
 	case splashTickMsg:
 		if m.splashDone {
 			return m, nil
@@ -196,6 +223,11 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tickMsg:
 		if !m.streaming {
 			return m, nil
+		}
+		// Roughly every two seconds, so it reads as progress rather than noise.
+		m.thinkingStep++
+		if m.thinkingStep%26 == 0 {
+			m.thinkingIdx++
 		}
 		if m.dirty {
 			m.dirty = false
@@ -313,23 +345,13 @@ func (m *Model) View() string {
 		return m.pick.view(m.width, m.height)
 	}
 
-	return strings.Join([]string{
-		m.header(),
-		"",
-		m.viewport.View(),
-		m.inputView(),
-		m.statusBar(),
-	}, "\n")
-}
-
-func (m *Model) inputView() string {
-	if m.streaming {
-		// Hide the composer while the model is talking: it cannot be sent
-		// anyway, and showing it invites typing that goes nowhere.
-		return styleMuted.Render(strings.Repeat("─", maxInt(1, m.width))) + "\n" +
-			styleMuted.Render("  generating… press esc to stop")
+	// An untouched conversation gets the composer in the middle of the screen;
+	// everything else is the docked layout, including the frames where the
+	// composer is still on its way down.
+	if m.sess.Empty() && !m.streaming && !m.sliding {
+		return m.welcomeView()
 	}
-	return styleMuted.Render(strings.Repeat("─", maxInt(1, m.width))) + "\n" + m.input.View()
+	return m.chatView()
 }
 
 // persist saves the session, surfacing failures rather than losing history

@@ -75,12 +75,50 @@ func TestViewRendersEmptyState(t *testing.T) {
 	m := newRenderedModel(t)
 	view := stripANSI(m.View())
 
-	for _, want := range []string{"alpaca", "llama3.2:latest", "workshop", "enter", "ctrl+p"} {
-		if !strings.Contains(view, want) {
-			t.Errorf("view is missing %q:\n%s", want, view)
-		}
+	if !strings.Contains(view, "alpaca") {
+		t.Errorf("header missing:\n%s", view)
+	}
+	// The animal sits above the greeting.
+	if !strings.ContainsAny(view, "▀▄█") {
+		t.Errorf("the mini alpaca did not render:\n%s", view)
+	}
+	if !strings.Contains(view, m.greeting) {
+		t.Errorf("greeting %q missing:\n%s", m.greeting, view)
+	}
+	// A framed composer, floating rather than docked.
+	if !strings.Contains(view, "╭") || !strings.Contains(view, "Ask anything") {
+		t.Errorf("composer missing:\n%s", view)
 	}
 	t.Logf("empty state:\n%s", view)
+}
+
+// The empty-state composer is centred: narrower than the screen, and with room
+// left below it rather than sitting on the status bar.
+func TestEmptyStateComposerIsCentred(t *testing.T) {
+	m := newRenderedModel(t)
+	lines := strings.Split(stripANSI(m.View()), "\n")
+
+	top := -1
+	for i, line := range lines {
+		if strings.Contains(line, "╭") {
+			top = i
+			break
+		}
+	}
+	if top < 0 {
+		t.Fatalf("no composer found:\n%s", strings.Join(lines, "\n"))
+	}
+	if top < 4 {
+		t.Errorf("composer starts at row %d, expected it lower down the screen", top)
+	}
+	if top > len(lines)-8 {
+		t.Errorf("composer starts at row %d of %d, expected room left below it", top, len(lines))
+	}
+
+	indent := len(lines[top]) - len(strings.TrimLeft(lines[top], " "))
+	if indent < 4 {
+		t.Errorf("composer is indented %d columns, expected it narrower and centred", indent)
+	}
 }
 
 func TestViewRendersConversation(t *testing.T) {
@@ -93,7 +131,7 @@ func TestViewRendersConversation(t *testing.T) {
 
 	view := stripANSI(m.View())
 
-	if !strings.Contains(view, "What is a goroutine?") {
+	if !strings.Contains(view, "goroutine") {
 		t.Errorf("user message missing:\n%s", view)
 	}
 	if !strings.Contains(view, "lightweight thread") {
@@ -110,6 +148,42 @@ func TestViewRendersConversation(t *testing.T) {
 		t.Errorf("code block content missing:\n%s", view)
 	}
 	t.Logf("conversation:\n%s", view)
+}
+
+// The two sides of the conversation lean to opposite edges, which is what makes
+// a transcript scannable without reading any of it.
+func TestUserRightAssistantLeft(t *testing.T) {
+	m := newRenderedModel(t)
+	m.sess.Append(client.Message{Role: client.RoleUser, Content: "hello there"})
+	m.sess.Append(client.Message{Role: client.RoleAssistant, Content: "General Kenobi."})
+	m.rebuildCache()
+	m.refreshViewport(true)
+
+	lines := strings.Split(stripANSI(m.View()), "\n")
+
+	var bubbleIndent, assistantIndent = -1, -1
+	for _, line := range lines {
+		trimmed := strings.TrimLeft(line, " ")
+		if bubbleIndent < 0 && strings.HasPrefix(trimmed, "╭") {
+			bubbleIndent = len(line) - len(trimmed)
+		}
+		if assistantIndent < 0 && strings.HasPrefix(trimmed, "▌") {
+			assistantIndent = len(line) - len(trimmed)
+		}
+	}
+	if bubbleIndent < 0 {
+		t.Fatalf("no user bubble found:\n%s", strings.Join(lines, "\n"))
+	}
+	if assistantIndent < 0 {
+		t.Fatalf("no assistant rail found:\n%s", strings.Join(lines, "\n"))
+	}
+	if bubbleIndent <= assistantIndent {
+		t.Errorf("user bubble indent %d is not to the right of the assistant rail %d",
+			bubbleIndent, assistantIndent)
+	}
+	if assistantIndent > 4 {
+		t.Errorf("assistant rail is indented %d columns, expected it hard left", assistantIndent)
+	}
 }
 
 func TestViewRendersStreamingState(t *testing.T) {

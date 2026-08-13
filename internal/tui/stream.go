@@ -3,6 +3,7 @@ package tui
 import (
 	"context"
 	"errors"
+	"math/rand"
 	"strings"
 	"time"
 
@@ -21,6 +22,7 @@ const repaintInterval = 80 * time.Millisecond
 type (
 	tickMsg          time.Time
 	splashTickMsg    time.Time
+	slideTickMsg     time.Time
 	statusExpiredMsg int
 	streamClosedMsg  struct{}
 
@@ -71,6 +73,14 @@ func splashTick() tea.Cmd {
 	return tea.Tick(splashInterval, func(t time.Time) tea.Msg { return splashTickMsg(t) })
 }
 
+// slideInterval matches the opening's frame rate, so motion in the interface
+// runs at one speed.
+const slideInterval = 16 * time.Millisecond
+
+func slideTick() tea.Cmd {
+	return tea.Tick(slideInterval, func(t time.Time) tea.Msg { return slideTickMsg(t) })
+}
+
 func tick() tea.Cmd {
 	return tea.Tick(repaintInterval, func(t time.Time) tea.Msg { return tickMsg(t) })
 }
@@ -112,6 +122,8 @@ func (m *Model) startStream() tea.Cmd {
 	m.dirty = false
 	m.streamStart = time.Now()
 	m.lastUsage = nil
+	m.thinkingIdx = rand.Intn(len(thinkingWords))
+	m.thinkingStep = 0
 
 	// Buffered so a burst of tokens does not block the reader goroutine
 	// between Bubble Tea update cycles.

@@ -54,6 +54,10 @@ func TestDemoModeRendersAConversation(t *testing.T) {
 	if m.streaming {
 		m.finishStream()
 	}
+	// Dock the composer the way the runtime does, by running the slide out.
+	for i := 0; i < slideTicks+2 && m.sliding; i++ {
+		m.Update(slideTickMsg{})
+	}
 	m.rebuildCache()
 	m.refreshViewport(true)
 	m.viewport.GotoBottom()
@@ -61,8 +65,10 @@ func TestDemoModeRendersAConversation(t *testing.T) {
 	view := stripANSI(m.View())
 	t.Logf("AFTER A REPLY\n%s", view)
 
-	if !strings.Contains(view, "write me a go function") {
-		t.Errorf("the prompt is missing from the transcript")
+	// The prompt wraps inside its bubble, so match a fragment rather than the
+	// whole line.
+	if !strings.Contains(view, "write me a go") {
+		t.Errorf("the prompt is missing from the transcript:\n%s", view)
 	}
 	if !strings.Contains(view, "offline demo") {
 		t.Errorf("header does not say this is a demo:\n%s", view)

@@ -28,10 +28,20 @@ func (m *Model) send() tea.Cmd {
 		return m.setStatus("no model selected yet — press ctrl+p to choose one", true)
 	}
 
+	// The composer only makes its journey once: on the message that turns an
+	// empty screen into a conversation.
+	firstMessage := m.sess.Empty()
+
 	m.input.Reset()
 	m.sess.Append(client.Message{Role: client.RoleUser, Content: text})
 	m.cacheLast()
-	return m.startStream()
+
+	stream := m.startStream()
+	if firstMessage {
+		m.sliding, m.slideStep = true, 0
+		return tea.Batch(stream, slideTick())
+	}
+	return stream
 }
 
 // newSession archives the current chat and starts a fresh one, carrying over

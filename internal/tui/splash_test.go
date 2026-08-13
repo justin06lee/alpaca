@@ -166,7 +166,7 @@ func TestSplashGivesWayToTheChat(t *testing.T) {
 	if strings.Contains(view, "█") {
 		t.Errorf("still showing the opening after it finished:\n%s", view)
 	}
-	if !strings.Contains(view, "Send a message") {
+	if !strings.Contains(view, "Ask anything") {
 		t.Errorf("chat interface did not take over:\n%s", view)
 	}
 }

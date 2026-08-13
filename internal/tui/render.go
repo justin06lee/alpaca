@@ -10,15 +10,19 @@ import (
 	"github.com/justin06lee/alpaca/internal/client"
 )
 
-// Palette. Colours are ANSI 256 so they adapt to whatever theme the terminal
-// already uses, rather than fighting it with hard-coded hex values.
+// Palette, taken from the opening's pixel art so the interface and the splash
+// look like the same program. Warm terracotta for the animal and its replies, a
+// cool slate for the human, so the two sides of a conversation separate at a
+// glance without either shouting.
 var (
-	colorAccent = lipgloss.Color("39")  // cyan-blue: alpaca itself
-	colorUser   = lipgloss.Color("213") // pink: the human
-	colorModel  = lipgloss.Color("78")  // green: the model
-	colorMuted  = lipgloss.Color("245")
-	colorError  = lipgloss.Color("203")
-	colorWarn   = lipgloss.Color("221")
+	colorAccent = lipgloss.Color("#E0A177") // terracotta: alpaca itself
+	colorUser   = lipgloss.Color("#8FB3C7") // slate: the human
+	colorModel  = lipgloss.Color("#D9A283") // warm wool: the model
+	colorText   = lipgloss.Color("#D8D2CB")
+	colorMuted  = lipgloss.Color("#6F6459")
+	colorFaint  = lipgloss.Color("#4A423B")
+	colorError  = lipgloss.Color("#D98A72")
+	colorWarn   = lipgloss.Color("#E0C08A")
 )
 
 var (
@@ -28,18 +32,21 @@ var (
 
 	styleHeaderMeta = lipgloss.NewStyle().Foreground(colorMuted)
 
-	styleUserLabel = lipgloss.NewStyle().
-			Foreground(colorUser).
-			Bold(true)
+	// The human's turn is a bubble that hugs its text on the right, the way a
+	// message from you sits in any chat app.
+	styleUserBubble = lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(colorUser).
+			Foreground(colorText).
+			Padding(0, 1)
 
 	styleModelLabel = lipgloss.NewStyle().
 			Foreground(colorModel).
 			Bold(true)
 
-	styleUserText = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("252"))
-
 	styleMuted = lipgloss.NewStyle().Foreground(colorMuted)
+
+	styleFaint = lipgloss.NewStyle().Foreground(colorFaint)
 
 	styleError = lipgloss.NewStyle().Foreground(colorError)
 
@@ -52,8 +59,8 @@ var (
 				Bold(true)
 
 	stylePickerSelected = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("231")).
-				Background(lipgloss.Color("24")).
+				Foreground(lipgloss.Color("#2A211B")).
+				Background(colorAccent).
 				Bold(true)
 
 	stylePickerDesc = lipgloss.NewStyle().Foreground(colorMuted)
@@ -63,6 +70,16 @@ var (
 			Italic(true)
 
 	styleSearchNote = lipgloss.NewStyle().Foreground(colorAccent)
+
+	styleGreeting = lipgloss.NewStyle().Foreground(colorText)
+
+	// The composer's frame, quiet until it has focus.
+	styleComposer = lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(colorFaint).
+			Padding(0, 1)
+
+	styleComposerActive = styleComposer.BorderForeground(colorAccent)
 
 	// Barely there on either background, which is the point.
 	styleCredit = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{
@@ -105,26 +122,60 @@ func (m *Model) renderMarkdown(text string) string {
 	return strings.Trim(out, "\n")
 }
 
+// bubbleMax is the widest a user bubble may grow. Letting it run the full width
+// would defeat the point: the right edge is what marks the turn as yours, and
+// that only reads if the left edge stops short of the model's replies.
+func (m *Model) bubbleMax() int {
+	max := m.contentWidth() * 62 / 100
+	if max < 24 {
+		max = minInt(24, m.contentWidth())
+	}
+	return max
+}
+
 // renderMessage formats one stored message.
 func (m *Model) renderMessage(msg client.Message) string {
 	switch msg.Role {
 	case client.RoleUser:
-		label := styleUserLabel.Render("▌ you")
-		body := styleUserText.Render(indentPlain(msg.Content, m.contentWidth()))
-		return label + "\n" + body
+		bubble := styleUserBubble.Width(fitWidth(msg.Content, m.bubbleMax())).Render(msg.Content)
+		return lipgloss.NewStyle().Width(m.contentWidth()).
+			Align(lipgloss.Right).Render(bubble)
 
 	case client.RoleAssistant:
-		label := styleModelLabel.Render("▌ " + m.sess.Model)
-		return label + "\n" + m.renderMarkdown(msg.Content)
+		return m.assistantBlock(m.renderMarkdown(msg.Content))
 
 	case client.RoleSystem:
 		// Context injected mid-conversation (search results, for instance) is
 		// worth reading, so it is rendered in full rather than truncated.
-		return styleSearchNote.Render("▌ context") + "\n" + m.renderMarkdown(msg.Content)
+		return styleSearchNote.Render("◈ context") + "\n" + m.renderMarkdown(msg.Content)
 
 	default:
 		return styleMuted.Render(msg.Role + ": " + msg.Content)
 	}
+}
+
+// assistantBlock renders the model's side: left-aligned under a small rail, so
+// code blocks and tables get the full width they need.
+func (m *Model) assistantBlock(body string) string {
+	return styleModelLabel.Render("▌ "+m.sess.Model) + "\n" + body
+}
+
+// fitWidth is how wide a bubble needs to be: the longest line, capped. Short
+// messages hug their text instead of stretching to the cap.
+func fitWidth(text string, max int) int {
+	widest := 0
+	for _, line := range strings.Split(text, "\n") {
+		if w := lipgloss.Width(line); w > widest {
+			widest = w
+		}
+	}
+	if widest > max {
+		widest = max
+	}
+	if widest < 6 {
+		widest = 6
+	}
+	return widest
 }
 
 // indentPlain wraps user text without markdown processing, since what the user
@@ -172,16 +223,13 @@ func (m *Model) conversation() string {
 			b.WriteString(styleSearchNote.Render("  ⌕ " + note))
 			b.WriteString("\n")
 		}
-		if m.streamBuf == "" {
-			b.WriteString(styleMuted.Render(m.spinner.View() + " thinking…"))
-		} else {
+		// Nothing stands in for the reply before it starts: the composer shows
+		// what the model is doing, and a second indicator here would just be
+		// the same news twice.
+		if m.streamBuf != "" {
 			b.WriteString(m.renderMarkdown(m.streamBuf))
 		}
 		b.WriteString("\n\n")
-	}
-
-	if len(m.sess.Messages) == 0 && !m.streaming {
-		b.WriteString(m.welcome())
 	}
 
 	return strings.TrimRight(b.String(), "\n")
@@ -206,38 +254,6 @@ func (m *Model) cacheLast() {
 		m.rendered = append(m.rendered, m.renderMessage(m.sess.Messages[len(m.rendered)]))
 	}
 	m.rendered = append(m.rendered, m.renderMessage(m.sess.Messages[idx]))
-}
-
-// cell renders a key and its description padded to a fixed column width.
-//
-// The padding is computed from the unstyled lengths: styled strings carry ANSI
-// escapes, so a %-*s verb would count those invisible bytes and misalign every
-// column.
-func cell(key, desc string, keyWidth, descWidth int) string {
-	pad := func(n int) string {
-		if n < 1 {
-			n = 1
-		}
-		return strings.Repeat(" ", n)
-	}
-	return styleStatusKey.Render(key) + pad(keyWidth-len(key)) +
-		styleMuted.Render(desc) + pad(descWidth-len(desc))
-}
-
-func (m *Model) welcome() string {
-	const keyCol, descCol = 9, 18
-
-	lines := []string{
-		styleMuted.Render("Type a message and press ") + styleStatusKey.Render("enter") +
-			styleMuted.Render(" to send."),
-		"",
-		"  " + cell("ctrl+j", "newline", keyCol, descCol) + cell("ctrl+p", "switch model", keyCol, 0),
-		"  " + cell("esc", "stop generating", keyCol, descCol) + cell("ctrl+s", "saved chats", keyCol, 0),
-		"  " + cell("ctrl+n", "new chat", keyCol, descCol) + cell("?", "all keys", keyCol, 0),
-		"",
-		styleMuted.Render("Slash commands: /model /new /sessions /system /retry /copy /help"),
-	}
-	return strings.Join(lines, "\n")
 }
 
 // header renders the top bar: who we are talking to and how we got there.
@@ -285,7 +301,7 @@ func (m *Model) statusBar() string {
 
 	var parts []string
 	if m.streaming {
-		parts = append(parts, styleWarn.Render("streaming"), styleMuted.Render("esc to stop"))
+		parts = append(parts, styleWarn.Render("streaming"))
 	} else {
 		parts = append(parts, styleMuted.Render(fmt.Sprintf("%d messages", len(m.sess.Messages))))
 	}
