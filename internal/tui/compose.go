@@ -3,6 +3,7 @@ package tui
 import (
 	"math/rand"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/lipgloss"
 )
@@ -11,10 +12,10 @@ import (
 // border above and below.
 const composerRows = 5
 
-// slideTicks is how long the composer takes to travel from the middle of the
+// slideDuration is how long the composer takes to travel from the middle of the
 // screen down to its dock. Short enough to feel like a response to the keypress
 // rather than a cutscene.
-const slideTicks = 26
+const slideDuration = 420 * time.Millisecond
 
 // miniAlpaca is a smaller sprite than the opening's, sized to sit above a line
 // of text without dominating it. Same colour keys as the splash.
@@ -93,11 +94,15 @@ func lerpInt(from, to int, t float64) int {
 
 // slide is how far the composer has travelled: 0 in the middle of an empty
 // screen, 1 docked at the bottom.
+// Progress is measured against the clock rather than counted in frames. If
+// anything stalls the update loop, a clock-based slide resumes where it should
+// be by now, whereas a frame count would freeze mid-flight and then play the
+// rest of the animation late.
 func (m *Model) slide() float64 {
-	if m.sliding {
-		return easeOutBack(float64(m.slideStep) / float64(slideTicks))
+	if !m.sliding {
+		return 1
 	}
-	return 1
+	return easeOutBack(float64(time.Since(m.slideStart)) / float64(slideDuration))
 }
 
 // composerWidth narrows the box while it is centred and lets it fill the width

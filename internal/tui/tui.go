@@ -74,8 +74,8 @@ type Model struct {
 	greeting string
 	// sliding tracks the composer's journey from the middle of an empty screen
 	// down to its dock, which happens once, on the first message.
-	sliding   bool
-	slideStep int
+	sliding    bool
+	slideStart time.Time
 	// thinkingIdx rotates the status shown while waiting on the first token.
 	thinkingIdx  int
 	thinkingStep int
@@ -195,10 +195,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if !m.sliding {
 			return m, nil
 		}
-		m.slideStep++
-		if m.slideStep >= slideTicks {
+		if time.Since(m.slideStart) >= slideDuration {
 			m.sliding = false
-			m.slideStep = slideTicks
 			return m, nil
 		}
 		return m, slideTick()

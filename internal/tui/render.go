@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -94,11 +95,34 @@ func newRenderer(width int) (*glamour.TermRenderer, error) {
 		width = 20
 	}
 	return glamour.NewTermRenderer(
-		// AutoStyle picks a light or dark theme from the terminal's own
-		// background, so the output does not clash with the user's setup.
-		glamour.WithAutoStyle(),
+		glamour.WithStandardStyle(markdownStyle()),
 		glamour.WithWordWrap(width),
 	)
+}
+
+// markdownStyle chooses a glamour theme without asking the terminal anything.
+//
+// glamour's auto style calls termenv.HasDarkBackground, which writes an OSC 11
+// query and blocks waiting for the answer. Inside a Bubble Tea program that
+// answer never arrives — Bubble Tea owns stdin and consumes it — so the call
+// sits there until it times out, freezing whatever frame it landed in. It
+// landed on the first token of the first reply, mid-animation.
+//
+// COLORFGBG is set by a good number of terminals and costs nothing to read.
+// Failing that, dark is both the safer guess and the one this theme is built
+// for; GLAMOUR_STYLE overrides either way.
+func markdownStyle() string {
+	if style := os.Getenv("GLAMOUR_STYLE"); style != "" {
+		return style
+	}
+	if fgbg := os.Getenv("COLORFGBG"); fgbg != "" {
+		fields := strings.Split(fgbg, ";")
+		switch fields[len(fields)-1] {
+		case "7", "15":
+			return "light"
+		}
+	}
+	return "dark"
 }
 
 // renderMarkdown formats assistant output, falling back to the raw text if the

@@ -38,7 +38,7 @@ func (m *Model) send() tea.Cmd {
 
 	stream := m.startStream()
 	if firstMessage {
-		m.sliding, m.slideStep = true, 0
+		m.sliding, m.slideStart = true, time.Now()
 		return tea.Batch(stream, slideTick())
 	}
 	return stream

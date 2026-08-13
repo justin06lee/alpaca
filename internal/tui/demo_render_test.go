@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/justin06lee/alpaca/internal/client"
@@ -54,10 +55,9 @@ func TestDemoModeRendersAConversation(t *testing.T) {
 	if m.streaming {
 		m.finishStream()
 	}
-	// Dock the composer the way the runtime does, by running the slide out.
-	for i := 0; i < slideTicks+2 && m.sliding; i++ {
-		m.Update(slideTickMsg{})
-	}
+	// Dock the composer by winding its clock past the end of the slide.
+	m.slideStart = time.Now().Add(-2 * slideDuration)
+	m.Update(slideTickMsg{})
 	m.rebuildCache()
 	m.refreshViewport(true)
 	m.viewport.GotoBottom()
