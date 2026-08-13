@@ -73,9 +73,11 @@ func splashTick() tea.Cmd {
 	return tea.Tick(splashInterval, func(t time.Time) tea.Msg { return splashTickMsg(t) })
 }
 
-// slideInterval matches the opening's frame rate, so motion in the interface
-// runs at one speed.
-const slideInterval = 16 * time.Millisecond
+// slideInterval is finer than the opening's frame rate. The composer's vertical
+// travel is quantised to whole rows and cannot be smoothed, so the width change
+// is what carries the motion, and that has a column of resolution to spend on
+// every frame it is given.
+const slideInterval = 12 * time.Millisecond
 
 func slideTick() tea.Cmd {
 	return tea.Tick(slideInterval, func(t time.Time) tea.Msg { return slideTickMsg(t) })
