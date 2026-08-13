@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"math"
 	"math/rand"
 	"strings"
 	"time"
@@ -15,8 +14,10 @@ const composerRows = 5
 
 // slideDuration is how long the composer takes to travel from the middle of the
 // screen down to its dock. Long enough to watch the box reshape and land,
-// short enough to still feel like a response to the keypress.
-const slideDuration = 780 * time.Millisecond
+// short enough to still feel like a response to the keypress. (It was 780ms
+// when the landing had a bounce to show off; a plain glide reads better
+// tighter.)
+const slideDuration = 550 * time.Millisecond
 
 // miniAlpaca is a smaller sprite than the opening's, sized to sit above a line
 // of text without dominating it. Same colour keys as the splash.
@@ -74,32 +75,24 @@ var thinkingWords = []string{
 
 func randomGreeting() string { return greetings[rand.Intn(len(greetings))] }
 
-// easeOutSpring overshoots its target once and then settles, which is what
-// gives the composer its bounce as it lands.
+// easeOutCubic starts fast and brakes smoothly into the dock, stopping exactly
+// there.
 //
-// A damped sine rather than the usual cubic "back" ease, because the tail
-// matters here. The cubic approaches its target so slowly that the box sat a
-// row past its dock for the better part of half a second and then snapped into
-// place; an exponential decay settles crisply while still overshooting enough
-// to see.
-//
-// The overshoot is deliberately large. Vertical travel is only about eight
-// terminal rows and a row is the smallest step there is, so the textbook ten
-// percent rounds away to a single flickering row.
-func easeOutSpring(t float64) float64 {
+// It replaced a damped-sine spring. The bounce needed the box to overshoot its
+// dock and settle back, but vertical travel is only about eight terminal rows
+// and a row is the smallest step there is — so the overshoot quantised to a
+// single row flickering over the status line instead of reading as motion. A
+// monotone ease spends the same time where the eye actually is: quick off the
+// mark, decelerating into the landing, never past it.
+func easeOutCubic(t float64) float64 {
 	if t <= 0 {
 		return 0
 	}
 	if t >= 1 {
 		return 1
 	}
-	// omega sets how long the box takes to reach its overshoot, damping how
-	// hard it settles afterwards. Tuned by watching it: a faster rise reached
-	// the bottom before the box had finished widening, which hid the reshape
-	// that is half the point of the move.
-	const damping = 3.37
-	const omega = 7.0
-	return 1 - math.Exp(-damping*t)*math.Cos(omega*t)
+	inv := 1 - t
+	return 1 - inv*inv*inv
 }
 
 func lerpInt(from, to int, t float64) int {
@@ -116,7 +109,7 @@ func (m *Model) slide() float64 {
 	if !m.sliding {
 		return 1
 	}
-	return easeOutSpring(float64(time.Since(m.slideStart)) / float64(slideDuration))
+	return easeOutCubic(float64(time.Since(m.slideStart)) / float64(slideDuration))
 }
 
 // composerWidth narrows the box while it is centred and lets it fill the width
@@ -127,9 +120,8 @@ func (m *Model) composerWidth(slide float64) int {
 	if narrow > full {
 		narrow = full
 	}
-	// The ease overshoots past 1, and width has nowhere to overshoot to: an
-	// extra few columns here would push the box wider than the terminal and
-	// wrap its own border.
+	// Clamped as a guard: the width must never end up past the terminal edge,
+	// where the box would wrap its own border.
 	return clampInt(lerpInt(narrow, full, slide), narrow, full)
 }
 
@@ -254,13 +246,10 @@ func (m *Model) chatView() string {
 	composer := strings.Split(m.renderComposer(m.composerWidth(slide)), "\n")
 
 	// The composer starts where the welcome screen left it and ends one row
-	// above the status bar. easeOutSpring can carry it briefly past the dock,
-	// which pushes the status line off the bottom and reads as a bounce.
+	// above the status bar. The ease is monotone, so it brakes into the dock
+	// and stops there; the clamp only guards tiny terminals.
 	docked := m.height - 1 - len(composer)
 	centred := m.welcomeComposerTop()
-	// The overshoot is allowed to cover the status line, which is what makes
-	// the bounce visible, but not to run off the bottom and lose its own
-	// border.
 	top := clampInt(lerpInt(centred, docked, slide), 2, m.height-len(composer))
 
 	// The transcript fills whatever room is left above.
