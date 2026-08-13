@@ -78,18 +78,19 @@ func (s *Sniffer) accept() {
 	for {
 		conn, err := s.inner.Accept()
 		if err != nil {
-			// A transient accept error (fd exhaustion, for instance) should not
-			// take the whole server down; back off briefly and keep going.
-			var netErr net.Error
-			if errors.As(err, &netErr) && netErr.Timeout() {
-				select {
-				case <-time.After(50 * time.Millisecond):
-					continue
-				case <-s.done:
-					return
-				}
+			// The only reason to stop accepting is shutdown. Everything else —
+			// fd exhaustion, ECONNABORTED, a half-open handshake — is transient,
+			// and exiting on it would silently kill both HTTP and TLS for the
+			// rest of the process's life. Back off briefly and keep going.
+			if errors.Is(err, net.ErrClosed) {
+				return
 			}
-			return
+			select {
+			case <-time.After(50 * time.Millisecond):
+				continue
+			case <-s.done:
+				return
+			}
 		}
 		// Classify off the accept loop: peeking blocks on the client, and a
 		// single slow peer must not stall every other pending connection.
