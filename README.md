@@ -222,20 +222,49 @@ network.
 | Key | Action |
 | --- | --- |
 | `enter` | Send |
-| `ctrl+j` | Newline (terminals do not transmit `shift+enter`) |
+| `ctrl+j` | Newline (see [shift+enter](#shiftenter) below) |
 | `esc` | Stop generating, or clear the composer |
-| `ctrl+p` | Switch model |
+| `ctrl+p` | Switch model — a popup over the chat |
 | `ctrl+n` | New chat |
-| `ctrl+s` | Browse saved chats |
+| `ctrl+s` | Browse saved chats — a drawer beside the chat |
 | `ctrl+r` | Regenerate the last reply |
 | `ctrl+y` | Copy the last reply |
-| `pgup` / `pgdn`, `ctrl+u` / `ctrl+d` | Scroll |
+| mouse wheel, `pgup` / `pgdn`, `ctrl+u` / `ctrl+d` | Scroll |
 | `?` | All keys |
 | `ctrl+c` | Quit |
 
 Slash commands do the same things, plus `/search <query>` when the server has
 search enabled: `/model`, `/new`, `/sessions`, `/system`, `/retry`, `/copy`,
 `/clear`, `/search`, `/stats`, `/help`, `/quit`.
+
+### shift+enter
+
+Terminals transmit `shift+enter` as a plain `enter` — the application never
+sees the shift — so no TUI can support it natively. What every terminal *can*
+do is send a newline for that key combination itself, which makes
+`shift+enter` insert a newline exactly like `ctrl+j`:
+
+**Alacritty** (`~/.config/alacritty/alacritty.toml`):
+
+```toml
+[keyboard]
+bindings = [{ key = "Return", mods = "Shift", chars = "\n" }]
+```
+
+**kitty** (`~/.config/kitty/kitty.conf`):
+
+```
+map shift+enter send_text all \n
+```
+
+**WezTerm** (`~/.wezterm.lua`):
+
+```lua
+keys = { { key = "Enter", mods = "SHIFT", action = wezterm.action.SendString("\n") } }
+```
+
+**iTerm2**: Settings → Profiles → Keys → Key Mappings → `+`, record
+`shift+enter`, choose *Send Text* and enter `\n`.
 
 Chats are saved automatically as JSON under `~/.config/alpaca/sessions/`.
 `alpaca chat` starts a new conversation each time, so old context never attaches
