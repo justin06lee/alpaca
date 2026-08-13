@@ -3,8 +3,6 @@ package tui
 
 import (
 	"context"
-	"fmt"
-	"strings"
 	"time"
 
 	"github.com/charmbracelet/bubbles/spinner"
@@ -339,16 +337,25 @@ func (m *Model) View() string {
 	if !m.splashDone {
 		return renderSplash(m.width, m.height, m.splashScan, m.splashTagline())
 	}
-	if m.showHelp {
-		return m.helpView()
-	}
-	if m.mode != pickerNone {
-		return m.pick.view(m.width, m.height)
-	}
 
-	// An untouched conversation gets the composer in the middle of the screen;
-	// everything else is the docked layout, including the frames where the
-	// composer is still on its way down.
+	// The pickers and the help float over the conversation rather than
+	// replacing it — the chat is the context those decisions are made in.
+	base := m.baseView()
+	switch {
+	case m.showHelp:
+		return m.helpOverlay(base)
+	case m.mode == pickerModel:
+		return m.modelPopover(base)
+	case m.mode == pickerSession:
+		return m.sessionSidebar(base)
+	}
+	return base
+}
+
+// baseView is the conversation itself: an untouched one gets the composer in
+// the middle of the screen; everything else is the docked layout, including
+// the frames where the composer is still on its way down.
+func (m *Model) baseView() string {
 	if m.sess.Empty() && !m.streaming && !m.sliding {
 		return m.welcomeView()
 	}
@@ -378,59 +385,4 @@ func (m *Model) rememberModel() {
 		}
 		return nil
 	})
-}
-
-func (m *Model) helpView() string {
-	rows := [][2]string{
-		{"enter", "send the message"},
-		{"ctrl+j", "insert a newline"},
-		{"esc", "stop generating, or clear the composer"},
-		{"ctrl+c", "quit"},
-		{"", ""},
-		{"ctrl+p", "switch model"},
-		{"ctrl+n", "new chat"},
-		{"ctrl+s", "browse saved chats"},
-		{"ctrl+r", "regenerate the last reply"},
-		{"ctrl+y", "copy the last reply"},
-		{"", ""},
-		{"pgup/pgdn", "scroll the transcript"},
-		{"ctrl+u/ctrl+d", "scroll half a page"},
-		{"?", "toggle this help"},
-	}
-
-	var b strings.Builder
-	b.WriteString(stylePickerTitle.Render("alpaca — keys"))
-	b.WriteString("\n\n")
-	for _, row := range rows {
-		if row[0] == "" {
-			b.WriteString("\n")
-			continue
-		}
-		b.WriteString("  " + styleStatusKey.Render(fmt.Sprintf("%-14s", row[0])) + styleMuted.Render(row[1]))
-		b.WriteString("\n")
-	}
-
-	b.WriteString("\n")
-	b.WriteString(stylePickerTitle.Render("slash commands"))
-	b.WriteString("\n\n")
-	for _, row := range [][2]string{
-		{"/model [name]", "switch model, or open the picker"},
-		{"/new", "start a new chat"},
-		{"/sessions", "browse saved chats"},
-		{"/system <text>", "set the system prompt (empty to clear)"},
-		{"/retry", "regenerate the last reply"},
-		{"/copy", "copy the last reply to the clipboard"},
-		{"/clear", "delete this chat's messages"},
-		{"/search <query>", "search the web and add the results here"},
-		{"/stats", "show connection and token details"},
-		{"/help", "this screen"},
-		{"/quit", "exit"},
-	} {
-		b.WriteString("  " + styleStatusKey.Render(fmt.Sprintf("%-16s", row[0])) + styleMuted.Render(row[1]))
-		b.WriteString("\n")
-	}
-
-	b.WriteString("\n")
-	b.WriteString(styleMuted.Render("press any key to return"))
-	return b.String()
 }
