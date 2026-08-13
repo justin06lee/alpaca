@@ -83,7 +83,10 @@ alpaca chat — open the chat interface
 	}
 
 	ui := tui.New(connect, store, profiles, profile.Name, sess)
-	if _, err := tea.NewProgram(ui, tea.WithAltScreen()).Run(); err != nil {
+	// Mouse cell motion is what makes the wheel scroll the transcript. The
+	// trade-off is that the terminal's own click-drag text selection is
+	// captured too; most terminals still allow it while a modifier is held.
+	if _, err := tea.NewProgram(ui, tea.WithAltScreen(), tea.WithMouseCellMotion()).Run(); err != nil {
 		return fmt.Errorf("chat interface: %w", err)
 	}
 	// A connection failure ends the session; report it out here where it can be
@@ -197,7 +200,7 @@ func runDemoChat(model string) error {
 
 	profiles := &config.Profiles{Entries: map[string]*config.Profile{}}
 	ui := tui.New(tui.Connected(c), store, profiles, "demo", sess)
-	if _, err := tea.NewProgram(ui, tea.WithAltScreen()).Run(); err != nil {
+	if _, err := tea.NewProgram(ui, tea.WithAltScreen(), tea.WithMouseCellMotion()).Run(); err != nil {
 		return fmt.Errorf("chat interface: %w", err)
 	}
 	return ui.Err()

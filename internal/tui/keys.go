@@ -156,6 +156,35 @@ func (m *Model) handlePickerKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// wheelStep is how many transcript lines one wheel notch moves. Three matches
+// what most terminal applications do, fast enough to travel and slow enough
+// to track.
+const wheelStep = 3
+
+// handleMouse gives the wheel its obvious meanings: scrolling the transcript,
+// and moving the cursor in whichever picker is open. Everything else — clicks,
+// drags — is deliberately ignored.
+func (m *Model) handleMouse(msg tea.MouseMsg) tea.Cmd {
+	if !m.splashDone || m.showHelp {
+		return nil
+	}
+	switch msg.Button {
+	case tea.MouseButtonWheelUp:
+		if m.mode != pickerNone {
+			m.pick.move(-1)
+			return nil
+		}
+		m.viewport.LineUp(wheelStep)
+	case tea.MouseButtonWheelDown:
+		if m.mode != pickerNone {
+			m.pick.move(1)
+			return nil
+		}
+		m.viewport.LineDown(wheelStep)
+	}
+	return nil
+}
+
 // isDeliberateKey reports whether a key looks like a person pressing something,
 // as opposed to a terminal answering a query. Escape-sequence replies decode
 // into assorted control keys, so the skip only honours the handful of keys

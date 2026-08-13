@@ -162,7 +162,10 @@ func (m *Model) bubbleMax() int {
 func (m *Model) renderMessage(msg client.Message) string {
 	switch msg.Role {
 	case client.RoleUser:
-		bubble := styleUserBubble.Width(fitWidth(msg.Content, m.bubbleMax())).Render(msg.Content)
+		// Width covers content plus padding, and lipgloss wraps content at
+		// Width minus padding — sized to the text alone, a message exactly as
+		// wide as its bubble wrapped its own last word onto a second line.
+		bubble := styleUserBubble.Width(fitWidth(msg.Content, m.bubbleMax()) + 2).Render(msg.Content)
 		return lipgloss.NewStyle().Width(m.contentWidth()).
 			Align(lipgloss.Right).Render(bubble)
 

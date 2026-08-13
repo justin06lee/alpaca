@@ -169,6 +169,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		return m.handleKey(msg)
 
+	case tea.MouseMsg:
+		return m, m.handleMouse(msg)
+
 	case modelsMsg:
 		return m, m.handleModels(msg)
 
