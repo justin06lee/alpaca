@@ -247,11 +247,13 @@ func TestCacheSeparatesDifferentQueriesAndLimits(t *testing.T) {
 }
 
 func TestCacheExpires(t *testing.T) {
+	// A wide margin between TTL and sleep: a loaded CI machine can stall a
+	// goroutine long enough to turn a 2:1 ratio into a flake.
 	inner := &countingProvider{}
-	c := NewCached(inner, 30*time.Millisecond, 8)
+	c := NewCached(inner, 20*time.Millisecond, 8)
 
 	c.Search(context.Background(), "q", 5)
-	time.Sleep(60 * time.Millisecond)
+	time.Sleep(200 * time.Millisecond)
 	c.Search(context.Background(), "q", 5)
 
 	if got := inner.calls.Load(); got != 2 {
