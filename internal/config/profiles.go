@@ -61,7 +61,9 @@ func LoadProfiles() (*Profiles, error) {
 	return profiles, nil
 }
 
-// Save persists the profile store.
+// Save persists the profile store as-is. Callers that read, mutate, and write
+// back should go through UpdateProfiles instead, which holds the lock across
+// the whole cycle.
 func (p *Profiles) Save() error {
 	path, err := Path(profilesFile)
 	if err != nil {
@@ -71,6 +73,38 @@ func (p *Profiles) Save() error {
 		return fmt.Errorf("save profiles: %w", err)
 	}
 	return nil
+}
+
+// UpdateProfiles reloads the store, applies fn, and saves the result, all under
+// an exclusive advisory lock.
+//
+// The individual write was already atomic; this closes the read-modify-write
+// gap around it. Two alpaca processes on one machine is an ordinary situation —
+// a chat recording its route while a link runs in another terminal — and
+// without the lock the slower writer would resurrect whatever state it loaded
+// before the faster one saved.
+func UpdateProfiles(fn func(*Profiles) error) (*Profiles, error) {
+	path, err := Path(profilesFile)
+	if err != nil {
+		return nil, err
+	}
+	unlock, err := lockFile(path + ".lock")
+	if err != nil {
+		return nil, err
+	}
+	defer unlock()
+
+	profiles, err := LoadProfiles()
+	if err != nil {
+		return nil, err
+	}
+	if err := fn(profiles); err != nil {
+		return nil, err
+	}
+	if err := profiles.Save(); err != nil {
+		return nil, err
+	}
+	return profiles, nil
 }
 
 // Add stores a profile under a unique name and makes it the default when it is

@@ -358,9 +358,18 @@ func (c *Client) RememberRoute(profiles *config.Profiles) error {
 	if prof.LastGood == c.route.Endpoint && prof.LastGoodTLS == c.route.TLS {
 		return nil // nothing changed; skip the write
 	}
+	// Keep the caller's in-memory copy current, but write through the locked
+	// reload path so a concurrent alpaca process cannot be clobbered.
 	prof.LastGood = c.route.Endpoint
 	prof.LastGoodTLS = c.route.TLS
-	return profiles.Save()
+	_, err := config.UpdateProfiles(func(p *config.Profiles) error {
+		if entry, ok := p.Entries[c.profile.Name]; ok {
+			entry.LastGood = c.route.Endpoint
+			entry.LastGoodTLS = c.route.TLS
+		}
+		return nil
+	})
+	return err
 }
 
 // connectionError explains a total failure in terms the user can act on.

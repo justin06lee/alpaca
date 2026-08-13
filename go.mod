@@ -14,6 +14,7 @@ require (
 	github.com/jackpal/go-nat-pmp v1.0.2
 	github.com/libp2p/zeroconf/v2 v2.2.0
 	github.com/muesli/termenv v0.16.0
+	golang.org/x/sys v0.41.0
 )
 
 require (
@@ -45,7 +46,6 @@ require (
 	github.com/yuin/goldmark-emoji v1.0.6 // indirect
 	golang.org/x/net v0.50.0 // indirect
 	golang.org/x/sync v0.19.0 // indirect
-	golang.org/x/sys v0.41.0 // indirect
 	golang.org/x/term v0.40.0 // indirect
 	golang.org/x/text v0.34.0 // indirect
 )

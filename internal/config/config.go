@@ -68,6 +68,17 @@ func Path(elem ...string) (string, error) {
 	return full, nil
 }
 
+// Subdir resolves a directory inside the config directory, creating it (not
+// just its parent, as Path does for files) along the way.
+func Subdir(elem ...string) (string, error) {
+	dir, err := Dir()
+	if err != nil {
+		return "", err
+	}
+	full := filepath.Join(append([]string{dir}, elem...)...)
+	return full, ensureDir(full)
+}
+
 func ensureDir(path string) error {
 	if err := os.MkdirAll(path, dirPerm); err != nil {
 		return fmt.Errorf("create %s: %w", path, err)

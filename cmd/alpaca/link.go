@@ -45,24 +45,25 @@ alpaca link — save a server so this machine can reach it
 		return err
 	}
 
-	profiles, err := config.LoadProfiles()
-	if err != nil {
-		return err
-	}
-
-	// Re-linking the same server updates it in place rather than piling up
-	// duplicates — the usual reason to re-link is that the key or the
-	// addresses changed.
-	profile, existing := profiles.ByID(bundle.ID)
-	if existing {
-		profile.APIKey = bundle.Key
-		profile.Fingerprint = bundle.Fingerprint
-		profile.LAN = bundle.LAN
-		profile.Public = bundle.Public
-		// The cached route may be stale now; let the next connect re-race.
-		profile.LastGood = ""
-		profile.LastGoodTLS = false
-	} else {
+	// The whole read-modify-write runs under the profile lock, so linking in
+	// one terminal cannot clobber a chat saving its route in another.
+	var profile *config.Profile
+	var existing bool
+	profiles, err := config.UpdateProfiles(func(p *config.Profiles) error {
+		// Re-linking the same server updates it in place rather than piling up
+		// duplicates — the usual reason to re-link is that the key or the
+		// addresses changed.
+		profile, existing = p.ByID(bundle.ID)
+		if existing {
+			profile.APIKey = bundle.Key
+			profile.Fingerprint = bundle.Fingerprint
+			profile.LAN = bundle.LAN
+			profile.Public = bundle.Public
+			// The cached route may be stale now; let the next connect re-race.
+			profile.LastGood = ""
+			profile.LastGoodTLS = false
+			return nil
+		}
 		label := bundle.Name
 		if *name != "" {
 			label = *name
@@ -75,10 +76,10 @@ alpaca link — save a server so this machine can reach it
 			LAN:         bundle.LAN,
 			Public:      bundle.Public,
 		}
-		profiles.Add(profile)
-	}
-
-	if err := profiles.Save(); err != nil {
+		p.Add(profile)
+		return nil
+	})
+	if err != nil {
 		return err
 	}
 

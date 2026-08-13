@@ -129,11 +129,11 @@ type Store struct {
 
 // NewStore opens the session directory.
 func NewStore() (*Store, error) {
-	dir, err := config.Path("sessions", "placeholder")
+	dir, err := config.Subdir("sessions")
 	if err != nil {
 		return nil, err
 	}
-	return &Store{dir: filepath.Dir(dir)}, nil
+	return &Store{dir: dir}, nil
 }
 
 func (s *Store) path(id string) string {
