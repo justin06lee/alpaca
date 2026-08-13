@@ -13,11 +13,9 @@ import (
 const composerRows = 5
 
 // slideDuration is how long the composer takes to travel from the middle of the
-// screen down to its dock. Long enough to watch the box reshape and land,
-// short enough to still feel like a response to the keypress. (It was 780ms
-// when the landing had a bounce to show off; a plain glide reads better
-// tighter.)
-const slideDuration = 550 * time.Millisecond
+// screen down to its dock. A plain glide reads best kept brisk: long enough to
+// register as motion, short enough that the reply never waits on it.
+const slideDuration = 400 * time.Millisecond
 
 // miniAlpaca is a smaller sprite than the opening's, sized to sit above a line
 // of text without dominating it. Same colour keys as the splash.

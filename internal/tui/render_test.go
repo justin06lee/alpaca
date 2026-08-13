@@ -295,3 +295,24 @@ func finishSplash(t *testing.T, m *Model, c *client.Client) {
 		t.Fatal("opening never finished")
 	}
 }
+
+// A short prompt must render on a single line: the bubble is sized to its
+// text, and the frame's Width covers content plus padding, so sizing it to
+// the text alone wrapped the last word of every message onto a second line.
+func TestUserBubbleKeepsShortMessagesOnOneLine(t *testing.T) {
+	m := newTestModel(t)
+	m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
+
+	for _, prompt := range []string{"oh interesting", "hi", "what's the weather like"} {
+		bubble := m.renderMessage(client.Message{Role: client.RoleUser, Content: prompt})
+		rows := 0
+		for _, l := range strings.Split(bubble, "\n") {
+			if strings.Contains(l, "│") {
+				rows++
+			}
+		}
+		if rows != 1 {
+			t.Errorf("%q rendered across %d text rows, want 1:\n%s", prompt, rows, bubble)
+		}
+	}
+}

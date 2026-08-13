@@ -391,13 +391,16 @@ type bannerInfo struct {
 }
 
 func printBanner(info bannerInfo) {
+	// The chat interface's terracotta palette, so `serve` and `chat` read as
+	// two faces of one program. lipgloss degrades the hex values to the
+	// nearest 256-colour entries on terminals without truecolor.
 	var (
-		title  = lipgloss.NewStyle().Foreground(lipgloss.Color("39")).Bold(true)
-		ok     = lipgloss.NewStyle().Foreground(lipgloss.Color("78"))
-		bad    = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
-		key    = lipgloss.NewStyle().Foreground(lipgloss.Color("213")).Bold(true)
-		muted  = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
-		accent = lipgloss.NewStyle().Foreground(lipgloss.Color("221"))
+		title  = lipgloss.NewStyle().Foreground(lipgloss.Color("#E0A177")).Bold(true)
+		ok     = lipgloss.NewStyle().Foreground(lipgloss.Color("#D9A283"))
+		bad    = lipgloss.NewStyle().Foreground(lipgloss.Color("#6F6459"))
+		key    = lipgloss.NewStyle().Foreground(lipgloss.Color("#E4BA9B")).Bold(true)
+		muted  = lipgloss.NewStyle().Foreground(lipgloss.Color("#6F6459"))
+		accent = lipgloss.NewStyle().Foreground(lipgloss.Color("#E0A177")).Bold(true)
 	)
 
 	out := os.Stdout

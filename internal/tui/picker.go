@@ -100,41 +100,50 @@ func (p *picker) backspaceFilter() {
 	p.refilter()
 }
 
-// view renders the overlay, scrolling to keep the cursor on screen.
-func (p *picker) view(width, height int) string {
-	var b strings.Builder
-
+// headerLine is the panel or screen title, with the live filter beside it.
+func (p *picker) headerLine(width int) string {
 	header := stylePickerTitle.Render(p.title)
 	if p.filter != "" {
-		header += styleMuted.Render("  filter: " + p.filter)
+		header += styleMuted.Render("  ·  " + p.filter)
 	}
-	b.WriteString(header)
-	b.WriteString("\n")
-	b.WriteString(styleMuted.Render(strings.Repeat("─", maxInt(1, minInt(width, 60)))))
-	b.WriteString("\n")
+	return truncate(header, width)
+}
 
-	// Rows available after the header, separator, and footer.
-	rows := height - 4
-	if rows < 1 {
-		rows = 1
+// footerLine names the keys that matter for this list.
+func (p *picker) footerLine(width int) string {
+	footer := "↑/↓ move · enter choose · esc close · type to filter"
+	if p.kind == pickerSession {
+		footer = "↑/↓ move · enter open · ctrl+d delete · esc close"
 	}
+	return styleFaint.Render(truncate(footer, width))
+}
 
-	// Scroll the window so the cursor stays visible.
+// ensureVisible scrolls the window so the cursor stays on screen when
+// perScreen items fit at once.
+func (p *picker) ensureVisible(perScreen int) {
+	if perScreen < 1 {
+		perScreen = 1
+	}
 	if p.cursor < p.offset {
 		p.offset = p.cursor
 	}
-	if p.cursor >= p.offset+rows {
-		p.offset = p.cursor - rows + 1
+	if p.cursor >= p.offset+perScreen {
+		p.offset = p.cursor - perScreen + 1
 	}
 	if p.offset < 0 {
 		p.offset = 0
 	}
+}
 
+// itemLines renders one line per item, cursor marked, scrolled to keep it on
+// screen. Shared by the floating popup and the small-terminal fallback.
+func (p *picker) itemLines(width, rows int) []string {
+	p.ensureVisible(rows)
 	if len(p.visible) == 0 {
-		b.WriteString(styleMuted.Render("  nothing matches " + p.filter))
-		b.WriteString("\n")
+		return []string{styleMuted.Render(truncate("  nothing matches "+p.filter, width))}
 	}
 
+	var out []string
 	end := minInt(p.offset+rows, len(p.visible))
 	for i := p.offset; i < end; i++ {
 		item := p.items[p.visible[i]]
@@ -142,26 +151,60 @@ func (p *picker) view(width, height int) string {
 			// The selected row styles its two halves differently, so each is
 			// truncated on its own: the description gets whatever the title
 			// left over, rather than overflowing the row.
-			title := truncate("› "+item.title, width-1)
-			b.WriteString(stylePickerSelected.Render(title))
-			if remaining := width - 1 - lipgloss.Width(title); item.desc != "" && remaining > 3 {
-				b.WriteString(stylePickerDesc.Render(truncate("  "+item.desc, remaining)))
+			title := truncate("› "+item.title, width)
+			line := stylePickerSelected.Render(title)
+			if remaining := width - lipgloss.Width(title); item.desc != "" && remaining > 3 {
+				line += stylePickerDesc.Render(truncate("  "+item.desc, remaining))
 			}
+			out = append(out, line)
 		} else {
 			line := "  " + item.title
 			if item.desc != "" {
 				line += "  " + item.desc
 			}
-			b.WriteString(stylePickerDesc.Render(truncate(line, width-1)))
+			out = append(out, stylePickerDesc.Render(truncate(line, width)))
 		}
-		b.WriteString("\n")
+	}
+	return out
+}
+
+// sidebarItemLines renders two rows per item — the title, then its details —
+// which reads far better in a tall, narrow panel than one crowded line.
+func (p *picker) sidebarItemLines(width, perScreen int) []string {
+	p.ensureVisible(perScreen)
+	if len(p.visible) == 0 {
+		return []string{styleMuted.Render(truncate("nothing matches "+p.filter, width))}
 	}
 
-	footer := "↑/↓ move · enter choose · esc cancel · type to filter"
-	if p.kind == pickerSession {
-		footer = "↑/↓ move · enter open · ctrl+d delete · esc cancel"
+	var out []string
+	end := minInt(p.offset+perScreen, len(p.visible))
+	for i := p.offset; i < end; i++ {
+		item := p.items[p.visible[i]]
+		if i == p.cursor {
+			out = append(out, stylePickerSelected.Render(truncate("› "+item.title, width)))
+		} else {
+			out = append(out, styleGreeting.Render(truncate("  "+item.title, width)))
+		}
+		out = append(out, stylePickerDesc.Render(truncate("    "+item.desc, width)))
 	}
-	b.WriteString(styleMuted.Render(truncate(footer, width)))
+	return out
+}
+
+// view renders the list over the whole screen — the fallback for terminals too
+// small to float a panel in.
+func (p *picker) view(width, height int) string {
+	var b strings.Builder
+	b.WriteString(p.headerLine(width))
+	b.WriteString("\n")
+	b.WriteString(styleMuted.Render(strings.Repeat("─", maxInt(1, minInt(width, 60)))))
+	b.WriteString("\n")
+
+	rows := maxInt(1, height-4)
+	for _, line := range p.itemLines(width-1, rows) {
+		b.WriteString(line)
+		b.WriteString("\n")
+	}
+	b.WriteString(p.footerLine(width))
 
 	return lipgloss.NewStyle().Width(width).Render(b.String())
 }

@@ -2,6 +2,7 @@ package tui
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -548,5 +549,48 @@ func TestSpriteRowsAreFullWidth(t *testing.T) {
 		if got := lipgloss.Width(l); got != want {
 			t.Errorf("sprite row %d is %d cells wide, want %d", i, got, want)
 		}
+	}
+}
+
+// The wheel scrolls the transcript; in a picker it moves the cursor instead.
+func TestMouseWheelScrollsTheTranscript(t *testing.T) {
+	m := newTestModel(t)
+	m.splashDone = true
+	m.Update(tea.WindowSizeMsg{Width: 80, Height: 12})
+
+	for i := 0; i < 30; i++ {
+		m.sess.Append(client.Message{Role: client.RoleUser, Content: fmt.Sprintf("message %d", i)})
+	}
+	m.rebuildCache()
+	m.refreshViewport(true)
+	m.viewport.GotoTop()
+
+	m.Update(tea.MouseMsg{Action: tea.MouseActionPress, Button: tea.MouseButtonWheelDown})
+	if got := m.viewport.YOffset; got != wheelStep {
+		t.Errorf("one wheel notch moved the view to offset %d, want %d", got, wheelStep)
+	}
+	m.Update(tea.MouseMsg{Action: tea.MouseActionPress, Button: tea.MouseButtonWheelUp})
+	if got := m.viewport.YOffset; got != 0 {
+		t.Errorf("wheel up did not return to the top: offset %d", got)
+	}
+}
+
+func TestMouseWheelMovesThePickerCursor(t *testing.T) {
+	m := newTestModel(t)
+	m.splashDone = true
+	m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+
+	m.pick = newPicker(pickerModel, "Choose a model", []pickerItem{
+		{id: "a", title: "a"}, {id: "b", title: "b"}, {id: "c", title: "c"},
+	})
+	m.mode = pickerModel
+
+	m.Update(tea.MouseMsg{Action: tea.MouseActionPress, Button: tea.MouseButtonWheelDown})
+	if m.pick.cursor != 1 {
+		t.Errorf("wheel down moved the cursor to %d, want 1", m.pick.cursor)
+	}
+	m.Update(tea.MouseMsg{Action: tea.MouseActionPress, Button: tea.MouseButtonWheelUp})
+	if m.pick.cursor != 0 {
+		t.Errorf("wheel up moved the cursor to %d, want 0", m.pick.cursor)
 	}
 }
