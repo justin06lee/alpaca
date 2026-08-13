@@ -95,24 +95,3 @@ func (b Bundle) validate() error {
 	}
 	return nil
 }
-
-// Endpoints lists every route in the bundle, LAN hints first. The client races
-// them, but the ordering still matters as a tiebreaker when several answer at
-// once.
-func (b Bundle) Endpoints() []string {
-	out := make([]string, 0, len(b.LAN)+1)
-	out = append(out, b.LAN...)
-	if b.Public != "" {
-		out = append(out, b.Public)
-	}
-	return out
-}
-
-// Redact returns a copy safe to print in logs or screenshots.
-func (b Bundle) Redact() Bundle {
-	c := b
-	if len(c.Key) > 8 {
-		c.Key = c.Key[:8] + "…"
-	}
-	return c
-}

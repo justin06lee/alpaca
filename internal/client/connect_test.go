@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/justin06lee/alpaca/internal/config"
+	"github.com/justin06lee/alpaca/internal/discovery"
 	"github.com/justin06lee/alpaca/internal/netx"
 )
 
@@ -296,5 +297,114 @@ func TestStaleCacheFallsThroughToHints(t *testing.T) {
 	}
 	if c.Route().Endpoint != hostPort(live.URL) {
 		t.Errorf("endpoint = %q, want the live hint", c.Route().Endpoint)
+	}
+}
+
+// Hints are read from a file on disk and plain HTTP carries the API key, so a
+// hint that is not verifiably private must be upgraded to TLS, never probed in
+// cleartext.
+func TestStaticCandidatesUpgradeUntrustedHintsToTLS(t *testing.T) {
+	prof := &config.Profile{
+		Name:        "trust",
+		ID:          "id123",
+		Fingerprint: strings.Repeat("ab", 32),
+		LAN: []string{
+			"192.168.1.20:8080",  // private v4 — plain is fine
+			"127.0.0.1:9999",     // loopback — never leaves the machine
+			"203.0.113.9:8080",   // global v4 — must be TLS
+			"[2001:db8::1]:8080", // global v6 — must be TLS
+			"evil.example:8080",  // hostname — could resolve anywhere, must be TLS
+		},
+	}
+
+	wantTLS := map[string]bool{
+		"192.168.1.20:8080":  false,
+		"127.0.0.1:9999":     false,
+		"203.0.113.9:8080":   true,
+		"[2001:db8::1]:8080": true,
+		"evil.example:8080":  true,
+	}
+
+	cands := staticCandidates(prof, Options{})
+	if len(cands) != len(wantTLS) {
+		t.Fatalf("got %d candidates, want %d", len(cands), len(wantTLS))
+	}
+	for _, c := range cands {
+		want, ok := wantTLS[c.endpoint]
+		if !ok {
+			t.Errorf("unexpected candidate %s", c.endpoint)
+			continue
+		}
+		if c.tls != want {
+			t.Errorf("candidate %s tls = %v, want %v", c.endpoint, c.tls, want)
+		}
+	}
+}
+
+// Discovered addresses are claims from the network, so when the profile holds a
+// pin every discovered route must require the server to prove itself over TLS.
+func TestDiscoveredCandidatesArePinnedToTLS(t *testing.T) {
+	prof := &config.Profile{ID: "id123", Fingerprint: strings.Repeat("ab", 32)}
+	found := &discovery.Result{
+		ID:        "id123",
+		Endpoints: []string{"192.168.1.20:8080", "[2001:db8::1]:8080"},
+	}
+
+	cands := discoveredCandidates(found, prof, Options{})
+	if len(cands) != 2 {
+		t.Fatalf("got %d candidates, want 2", len(cands))
+	}
+	for _, c := range cands {
+		if !c.tls {
+			t.Errorf("discovered candidate %s is plain HTTP; an impersonator answering "+
+				"mDNS would be handed the API key", c.endpoint)
+		}
+	}
+}
+
+// A TXT fingerprint that contradicts the pin is a non-starter; the answer as a
+// whole is skipped. The openssl colon format must not defeat the comparison.
+func TestDiscoveredCandidatesSkipMismatchedFingerprint(t *testing.T) {
+	prof := &config.Profile{ID: "id123", Fingerprint: strings.Repeat("ab", 32)}
+
+	mismatched := &discovery.Result{
+		ID:          "id123",
+		Fingerprint: strings.Repeat("cd", 32),
+		Endpoints:   []string{"192.168.1.20:8080"},
+	}
+	if cands := discoveredCandidates(mismatched, prof, Options{}); len(cands) != 0 {
+		t.Errorf("mismatched fingerprint produced %d candidates, want 0", len(cands))
+	}
+
+	// Same fingerprint in openssl's colon-separated uppercase form is a match.
+	colons := strings.ToUpper(strings.Repeat("AB:", 31) + "AB")
+	matching := &discovery.Result{
+		ID:          "id123",
+		Fingerprint: colons,
+		Endpoints:   []string{"192.168.1.20:8080"},
+	}
+	if cands := discoveredCandidates(matching, prof, Options{}); len(cands) != 1 {
+		t.Errorf("matching (colon-format) fingerprint produced %d candidates, want 1", len(cands))
+	}
+}
+
+// Without a pin there is nothing to verify a certificate against, but a
+// discovered global address still must not carry the key in cleartext.
+func TestDiscoveredCandidatesWithoutPinStillProtectGlobalRoutes(t *testing.T) {
+	prof := &config.Profile{ID: "id123"}
+	found := &discovery.Result{
+		ID:        "id123",
+		Endpoints: []string{"192.168.1.20:8080", "[2001:db8::1]:8080"},
+	}
+
+	cands := discoveredCandidates(found, prof, Options{})
+	if len(cands) != 2 {
+		t.Fatalf("got %d candidates, want 2", len(cands))
+	}
+	for _, c := range cands {
+		wantTLS := c.endpoint == "[2001:db8::1]:8080"
+		if c.tls != wantTLS {
+			t.Errorf("candidate %s tls = %v, want %v", c.endpoint, c.tls, wantTLS)
+		}
 	}
 }
