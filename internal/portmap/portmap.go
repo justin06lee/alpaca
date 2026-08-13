@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"sync"
 	"time"
 
 	"github.com/huin/goupnp/dcps/internetgateway2"
@@ -41,12 +42,20 @@ type Mapping struct {
 	// Method names the protocol that worked, for display.
 	Method string
 
-	renew   func(context.Context) error
+	// mu guards ExternalIP and ExternalPort once Maintain is running: a renewal
+	// can move either. Read them through Endpoint and Reachable after that.
+	mu sync.Mutex
+	// renew re-establishes the mapping and reports the external address and
+	// port the router currently honours — a residential IP changes on DHCP
+	// renewal, and some routers reassign the port on renew.
+	renew   func(context.Context) (net.IP, int, error)
 	release func(context.Context) error
 }
 
 // Endpoint renders the mapping as a host:port for a connect string.
 func (m *Mapping) Endpoint() string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	return net.JoinHostPort(m.ExternalIP.String(), fmt.Sprint(m.ExternalPort))
 }
 
@@ -57,7 +66,9 @@ func (m *Mapping) Endpoint() string {
 // address; the forward it set up is real but useless from outside, and saying
 // so up front is far kinder than letting the user discover it later.
 func (m *Mapping) Reachable() bool {
+	m.mu.Lock()
 	ip := m.ExternalIP
+	m.mu.Unlock()
 	if ip == nil || ip.IsLoopback() || ip.IsUnspecified() || ip.IsPrivate() || ip.IsLinkLocalUnicast() {
 		return false
 	}
@@ -78,7 +89,9 @@ func (m *Mapping) Release() {
 	_ = m.release(ctx)
 }
 
-// Maintain renews the mapping until ctx is cancelled, then releases it.
+// Maintain renews the mapping until ctx is cancelled, then releases it and
+// returns. Callers that must not exit before the router forgets the forward
+// should wait for Maintain to return.
 func (m *Mapping) Maintain(ctx context.Context, log *slog.Logger) {
 	ticker := time.NewTicker(renewInterval)
 	defer ticker.Stop()
@@ -90,12 +103,33 @@ func (m *Mapping) Maintain(ctx context.Context, log *slog.Logger) {
 			return
 		case <-ticker.C:
 			renewCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
-			err := m.renew(renewCtx)
+			ip, port, err := m.renew(renewCtx)
 			cancel()
 			if err != nil {
 				// Losing the mapping is survivable: LAN and Tailscale are
 				// unaffected, so log it and keep trying.
 				log.Warn("could not renew port mapping", "method", m.Method, "error", err)
+				continue
+			}
+
+			m.mu.Lock()
+			moved := (ip != nil && !ip.Equal(m.ExternalIP)) || (port != 0 && port != m.ExternalPort)
+			was := net.JoinHostPort(m.ExternalIP.String(), fmt.Sprint(m.ExternalPort))
+			if ip != nil {
+				m.ExternalIP = ip
+			}
+			if port != 0 {
+				m.ExternalPort = port
+			}
+			m.mu.Unlock()
+
+			if moved {
+				// The forward still works, but every connect string in
+				// circulation names the old endpoint. There is nothing to fix
+				// automatically — say it loudly instead of silently serving an
+				// address nobody has.
+				log.Warn("the router moved the public endpoint; connect strings carrying the old one are stale",
+					"method", m.Method, "was", was, "now", m.Endpoint())
 			} else {
 				log.Debug("renewed port mapping", "method", m.Method, "endpoint", m.Endpoint())
 			}
@@ -163,9 +197,20 @@ func mapNATPMP(ctx context.Context, internalPort int) (*Mapping, error) {
 		ExternalPort: externalPort,
 		InternalPort: internalPort,
 		Method:       "NAT-PMP",
-		renew: func(context.Context) error {
-			_, err := add()
-			return err
+		renew: func(context.Context) (net.IP, int, error) {
+			// The router may hand back a different external port than last
+			// time, and the WAN address may have moved on a DHCP renewal;
+			// report both rather than assuming the mapping stood still.
+			port, err := add()
+			if err != nil {
+				return nil, 0, err
+			}
+			var currentIP net.IP
+			if external, err := client.GetExternalAddress(); err == nil {
+				currentIP = net.IPv4(external.ExternalIPAddress[0], external.ExternalIPAddress[1],
+					external.ExternalIPAddress[2], external.ExternalIPAddress[3])
+			}
+			return currentIP, port, nil
 		},
 		release: func(context.Context) error {
 			// A zero lifetime is how NAT-PMP deletes a mapping.
@@ -275,7 +320,18 @@ func mapVia(ctx context.Context, conn upnpConn, internalPort int) (*Mapping, err
 		ExternalPort: internalPort,
 		InternalPort: internalPort,
 		Method:       "UPnP",
-		renew:        add,
+		renew: func(ctx context.Context) (net.IP, int, error) {
+			if err := add(ctx); err != nil {
+				return nil, 0, err
+			}
+			// UPnP keeps the requested port, but the WAN address can still
+			// move underneath the mapping; re-ask so Maintain notices.
+			var currentIP net.IP
+			if raw, err := conn.GetExternalIPAddressCtx(ctx); err == nil {
+				currentIP = net.ParseIP(raw)
+			}
+			return currentIP, internalPort, nil
+		},
 		release: func(ctx context.Context) error {
 			return conn.DeletePortMappingCtx(ctx, "", port, "TCP")
 		},

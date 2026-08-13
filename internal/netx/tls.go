@@ -16,6 +16,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -39,6 +40,45 @@ func Fingerprint(der []byte) string {
 	return hex.EncodeToString(sum[:])
 }
 
+// NormalizeFingerprint reduces a SHA-256 fingerprint to the canonical form
+// Fingerprint produces: lowercase hex, no separators. `openssl x509
+// -fingerprint` prints uppercase pairs joined by colons, and a user pasting
+// that form should get a working pin, not a mismatch that reads like an attack.
+func NormalizeFingerprint(fp string) string {
+	fp = strings.Map(func(r rune) rune {
+		if r == ':' || r == ' ' {
+			return -1
+		}
+		return r
+	}, fp)
+	return strings.ToLower(fp)
+}
+
+// MissingSANs lists which of hosts the certificate does not cover.
+//
+// The persisted certificate keeps whatever SANs it was minted with, while the
+// machine's addresses drift underneath it. alpaca's own client pins the
+// fingerprint and never looks at names, but curl and browsers do; serve uses
+// this to say so at startup instead of regenerating — which would break every
+// pinned client — or staying silent.
+func (id *Identity) MissingSANs(hosts []string) []string {
+	if len(id.Certificate.Certificate) == 0 {
+		return nil
+	}
+	leaf, err := x509.ParseCertificate(id.Certificate.Certificate[0])
+	if err != nil {
+		return nil
+	}
+	var missing []string
+	for _, host := range hosts {
+		// VerifyHostname accepts both DNS names and IP literals.
+		if host != "" && leaf.VerifyHostname(host) != nil {
+			missing = append(missing, host)
+		}
+	}
+	return missing
+}
+
 // LoadOrCreateIdentity returns the persisted certificate for this server,
 // generating one on first run.
 //
@@ -49,16 +89,37 @@ func LoadOrCreateIdentity(dir string, hosts []string) (*Identity, error) {
 	certPath := filepath.Join(dir, "server.crt")
 	keyPath := filepath.Join(dir, "server.key")
 
-	if id, err := loadIdentity(certPath, keyPath); err == nil {
-		return id, nil
-	} else if !os.IsNotExist(err) {
-		// A corrupt or unreadable pair is worth reporting rather than silently
-		// replacing: silently replacing it would invalidate existing clients.
+	// Mint a fresh identity only when both halves are affirmatively absent — a
+	// first run. Anything short of that (one file gone, a permission error, a
+	// corrupt pair) is reported rather than papered over, because replacing the
+	// certificate silently would invalidate every connect string in circulation.
+	if fileMissing(certPath) && fileMissing(keyPath) {
+		return CreateIdentity(dir, hosts)
+	}
+	if fileMissing(keyPath) {
+		return nil, fmt.Errorf("tls certificate %s exists but its private key %s is missing; "+
+			"restore the key from backup, or run `alpaca serve --rotate-cert` to mint a new identity "+
+			"(every linked client must then re-link)", certPath, keyPath)
+	}
+	if fileMissing(certPath) {
+		return nil, fmt.Errorf("tls private key %s exists but its certificate %s is missing; "+
+			"restore the certificate from backup, or run `alpaca serve --rotate-cert` to mint a new identity "+
+			"(every linked client must then re-link)", keyPath, certPath)
+	}
+
+	id, err := loadIdentity(certPath, keyPath)
+	if err != nil {
 		return nil, fmt.Errorf("load tls identity (delete %s and %s to regenerate): %w",
 			certPath, keyPath, err)
 	}
+	return id, nil
+}
 
-	return CreateIdentity(dir, hosts)
+// fileMissing is deliberately narrower than "cannot be read": a permission
+// error must not be mistaken for a first run.
+func fileMissing(path string) bool {
+	_, err := os.Stat(path)
+	return os.IsNotExist(err)
 }
 
 // CreateIdentity mints a fresh self-signed certificate and persists it,
@@ -168,7 +229,9 @@ func (id *Identity) ServerTLSConfig() *tls.Config {
 // the one whose hash the user carried over in the connect string. A public CA
 // mis-issuing for this host, or an attacker on the path, both fail this.
 func PinnedClientConfig(fingerprint string) *tls.Config {
-	want := []byte(fingerprint)
+	// Normalized once here so a colon-separated or uppercase pin — the format
+	// other tools print — still matches the canonical form we hash to.
+	want := []byte(NormalizeFingerprint(fingerprint))
 	return &tls.Config{
 		InsecureSkipVerify: true, //nolint:gosec // replaced by the pin below
 		MinVersion:         tls.VersionTLS12,
@@ -180,7 +243,7 @@ func PinnedClientConfig(fingerprint string) *tls.Config {
 			if subtle.ConstantTimeCompare(got, want) != 1 {
 				return fmt.Errorf("certificate fingerprint mismatch:\n  expected %s\n  received %s\n"+
 					"the server's certificate changed, or something is intercepting the connection",
-					fingerprint, got)
+					want, got)
 			}
 			return nil
 		},

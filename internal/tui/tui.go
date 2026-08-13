@@ -369,7 +369,12 @@ func (m *Model) rememberModel() {
 		return
 	}
 	prof.Model = m.sess.Model
-	_ = m.profiles.Save()
+	_, _ = config.UpdateProfiles(func(p *config.Profiles) error {
+		if entry, ok := p.Entries[m.profileName]; ok {
+			entry.Model = m.sess.Model
+		}
+		return nil
+	})
 }
 
 func (m *Model) helpView() string {

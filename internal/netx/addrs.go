@@ -3,6 +3,7 @@ package netx
 import (
 	"net"
 	"sort"
+	"strings"
 )
 
 // tailscaleCGNAT is the 100.64.0.0/10 range Tailscale assigns. Addresses there
@@ -100,6 +101,9 @@ func LocalAddrs() []Addr {
 		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
 			continue
 		}
+		if isVirtualIface(iface.Name) {
+			continue
+		}
 		addrs, err := iface.Addrs()
 		if err != nil {
 			continue
@@ -122,6 +126,26 @@ func LocalAddrs() []Addr {
 
 	sort.SliceStable(out, func(i, j int) bool { return rank(out[i]) < rank(out[j]) })
 	return out
+}
+
+// virtualIfacePrefixes names interfaces that carry container or VM traffic
+// rather than reaching the physical network. Their addresses are real enough to
+// classify as LAN — docker0's 172.17.0.1 is RFC 1918 and ranks first — but no
+// other machine can dial them, so as connect-string hints they waste a probe
+// and crowd out an address that works. Tailscale interfaces (tailscale0, utun*)
+// are deliberately not listed: their addresses are exactly the ones we want.
+var virtualIfacePrefixes = []string{
+	"docker", "podman", "veth", "br-", "virbr", "lxcbr", "lxdbr", "cni", "vmnet",
+}
+
+func isVirtualIface(name string) bool {
+	name = strings.ToLower(name)
+	for _, prefix := range virtualIfacePrefixes {
+		if strings.HasPrefix(name, prefix) {
+			return true
+		}
+	}
+	return false
 }
 
 // rank scores an address by how likely it is to be the one that works well.

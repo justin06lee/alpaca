@@ -320,3 +320,28 @@ func TestConnectFailureEndsTheSession(t *testing.T) {
 		t.Error("a failed connection should end the session")
 	}
 }
+
+// ctrl+c works from anywhere, including the opening — where no client exists
+// yet. Quitting there must exit cleanly, not dereference the connection that
+// never happened.
+func TestQuitDuringConnectDoesNotPanic(t *testing.T) {
+	t.Setenv("ALPACA_HOME", t.TempDir())
+	store, err := session.NewStore()
+	if err != nil {
+		t.Fatalf("NewStore: %v", err)
+	}
+	profiles := &config.Profiles{Entries: map[string]*config.Profile{}}
+
+	stalled := func(ctx context.Context) (*client.Client, error) {
+		<-ctx.Done()
+		return nil, ctx.Err()
+	}
+	m := New(stalled, store, profiles, "test", session.New("m", "test"))
+	m.Update(tea.WindowSizeMsg{Width: 90, Height: 34})
+	m.Update(splashTickMsg{})
+
+	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
+	if cmd == nil {
+		t.Fatal("ctrl+c during connect produced no command, want quit")
+	}
+}

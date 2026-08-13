@@ -162,8 +162,8 @@ func Connect(ctx context.Context, prof *config.Profile, opts Options) (*Client, 
 			if err != nil {
 				return
 			}
-			for _, endpoint := range found.Endpoints {
-				launch(candidate{endpoint: endpoint, tls: opts.ForceTLS, source: SourceMDNS})
+			for _, c := range discoveredCandidates(found, prof, opts) {
+				launch(c)
 			}
 		}()
 	}
@@ -203,7 +203,12 @@ func staticCandidates(prof *config.Profile, opts Options) []candidate {
 			return
 		}
 		seen[endpoint] = true
-		out = append(out, candidate{endpoint: endpoint, tls: useTLS || opts.ForceTLS, source: source, delay: delay})
+		// The trust boundary is enforced here as well as on the server: hints
+		// come from a file on disk and could have been written by an older
+		// alpaca or edited by hand, and plain HTTP carries the API key. Any
+		// endpoint that is not verifiably private is upgraded to TLS.
+		useTLS = useTLS || opts.ForceTLS || !trustedEndpoint(endpoint)
+		out = append(out, candidate{endpoint: endpoint, tls: useTLS, source: source, delay: delay})
 	}
 
 	// The route that worked last time is overwhelmingly likely to work again,
@@ -219,6 +224,48 @@ func staticCandidates(prof *config.Profile, opts Options) []candidate {
 	add(prof.Public, true, SourcePublic, publicDelay)
 
 	return out
+}
+
+// discoveredCandidates converts an mDNS answer into race candidates.
+//
+// Discovered addresses are claims from the network, not hints the user pasted,
+// so an impersonator can direct the client anywhere. When the profile carries a
+// pin, discovered routes are therefore probed over pinned TLS: whoever answers
+// must present the pinned certificate before the client will speak to it, and
+// the API key never reaches a machine that merely echoed the right ID.
+//
+// The advertised TXT fingerprint is attacker-writable and can never prove
+// identity, but a mismatch against the pin we already hold is enough to skip
+// the whole answer early.
+func discoveredCandidates(found *discovery.Result, prof *config.Profile, opts Options) []candidate {
+	if found == nil {
+		return nil
+	}
+	if found.Fingerprint != "" && prof.Fingerprint != "" &&
+		netx.NormalizeFingerprint(found.Fingerprint) != netx.NormalizeFingerprint(prof.Fingerprint) {
+		return nil
+	}
+	out := make([]candidate, 0, len(found.Endpoints))
+	for _, endpoint := range found.Endpoints {
+		useTLS := opts.ForceTLS || prof.Fingerprint != "" || !trustedEndpoint(endpoint)
+		out = append(out, candidate{endpoint: endpoint, tls: useTLS, source: SourceMDNS})
+	}
+	return out
+}
+
+// trustedEndpoint reports whether an endpoint may be probed over plain HTTP:
+// loopback, or an IP literal on a network alpaca treats as private. A hostname
+// could resolve anywhere, so it never qualifies.
+func trustedEndpoint(endpoint string) bool {
+	host, _, err := net.SplitHostPort(endpoint)
+	if err != nil {
+		host = endpoint
+	}
+	ip := net.ParseIP(host)
+	if ip == nil {
+		return false
+	}
+	return ip.IsLoopback() || netx.ClassifyIP(ip).Trusted()
 }
 
 // probe health-checks one candidate and verifies it is the right server.
@@ -311,9 +358,18 @@ func (c *Client) RememberRoute(profiles *config.Profiles) error {
 	if prof.LastGood == c.route.Endpoint && prof.LastGoodTLS == c.route.TLS {
 		return nil // nothing changed; skip the write
 	}
+	// Keep the caller's in-memory copy current, but write through the locked
+	// reload path so a concurrent alpaca process cannot be clobbered.
 	prof.LastGood = c.route.Endpoint
 	prof.LastGoodTLS = c.route.TLS
-	return profiles.Save()
+	_, err := config.UpdateProfiles(func(p *config.Profiles) error {
+		if entry, ok := p.Entries[c.profile.Name]; ok {
+			entry.LastGood = c.route.Endpoint
+			entry.LastGoodTLS = c.route.TLS
+		}
+		return nil
+	})
+	return err
 }
 
 // connectionError explains a total failure in terms the user can act on.

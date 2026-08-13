@@ -138,19 +138,21 @@ func (p *picker) view(width, height int) string {
 	end := minInt(p.offset+rows, len(p.visible))
 	for i := p.offset; i < end; i++ {
 		item := p.items[p.visible[i]]
-		line := "  " + item.title
-		if item.desc != "" {
-			line += "  " + item.desc
-		}
-		line = truncate(line, width-1)
-
 		if i == p.cursor {
-			b.WriteString(stylePickerSelected.Render(truncate("› "+item.title, width-1)))
-			if item.desc != "" {
-				b.WriteString(stylePickerDesc.Render("  " + item.desc))
+			// The selected row styles its two halves differently, so each is
+			// truncated on its own: the description gets whatever the title
+			// left over, rather than overflowing the row.
+			title := truncate("› "+item.title, width-1)
+			b.WriteString(stylePickerSelected.Render(title))
+			if remaining := width - 1 - lipgloss.Width(title); item.desc != "" && remaining > 3 {
+				b.WriteString(stylePickerDesc.Render(truncate("  "+item.desc, remaining)))
 			}
 		} else {
-			b.WriteString(stylePickerDesc.Render(line))
+			line := "  " + item.title
+			if item.desc != "" {
+				line += "  " + item.desc
+			}
+			b.WriteString(stylePickerDesc.Render(truncate(line, width-1)))
 		}
 		b.WriteString("\n")
 	}

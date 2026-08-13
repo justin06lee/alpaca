@@ -254,7 +254,7 @@ func (m *Model) chatView() string {
 	composer := strings.Split(m.renderComposer(m.composerWidth(slide)), "\n")
 
 	// The composer starts where the welcome screen left it and ends one row
-	// above the status bar. easeOutBack can carry it briefly past the dock,
+	// above the status bar. easeOutSpring can carry it briefly past the dock,
 	// which pushes the status line off the bottom and reads as a bounce.
 	docked := m.height - 1 - len(composer)
 	centred := m.welcomeComposerTop()

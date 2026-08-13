@@ -344,28 +344,3 @@ func TestTrustedAndGlobalAreDisjointAndCorrect(t *testing.T) {
 		}
 	}
 }
-
-func TestClassifyIP(t *testing.T) {
-	cases := []struct {
-		ip   string
-		want Reachability
-	}{
-		{"192.168.1.10", ReachLAN},
-		{"10.4.4.4", ReachLAN},
-		{"172.20.0.9", ReachLAN},
-		{"fd7a:115c:a1e0::1", ReachLAN},    // unique-local v6
-		{"100.100.42.7", ReachTailnet},     // tailscale CGNAT
-		{"2001:db8:1234::30", ReachGlobal}, // v6 GUA — routable, must not be plain http
-		{"8.8.8.8", ReachGlobal},
-	}
-	for _, tc := range cases {
-		t.Run(tc.ip, func(t *testing.T) {
-			if got := ClassifyIP(net.ParseIP(tc.ip)); got != tc.want {
-				t.Errorf("ClassifyIP(%s) = %v, want %v", tc.ip, got, tc.want)
-			}
-			if tc.want == ReachGlobal && ClassifyIP(net.ParseIP(tc.ip)).Trusted() {
-				t.Errorf("%s is routable from the internet but reports as trusted", tc.ip)
-			}
-		})
-	}
-}

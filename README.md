@@ -71,9 +71,14 @@ first.
 | Route | Transport | When it wins |
 | --- | --- | --- |
 | Last known good | as before | Nothing moved since last time — the usual case |
-| mDNS discovery | plain HTTP | Same network, but the server's IP changed |
+| mDNS discovery | TLS, pinned | Same network, but the server's IP changed |
 | LAN hints | plain HTTP | Same network, multicast blocked |
 | Public endpoint | TLS, pinned | You are somewhere else entirely |
+
+Discovered routes use pinned TLS even on the LAN: a hint you pasted is
+something you vouched for, but an mDNS answer is just a claim from the network,
+so whoever answers has to present the pinned certificate before the client will
+talk to it.
 
 The public candidate starts 300 ms late on purpose. Without that stagger it
 sometimes wins a race it should lose — reaching a machine in the same room by
@@ -118,7 +123,8 @@ Anything outside your LAN or tailnet is always TLS.
   rejected.
 - **Plain HTTP only on networks that are already private** — RFC 1918, IPv6
   unique-local, and Tailscale. Anything internet-routable is TLS-only, including
-  a public IPv6 address on the server itself.
+  a public IPv6 address on the server itself. The client enforces the same
+  boundary on its side, and mDNS-discovered routes are always pinned TLS.
 - The connect string **contains the API key**. Treat it like a password.
 - Revoke everything with `alpaca serve --rotate-key` (or `--rotate-cert`). Every
   previously linked machine then has to re-link.
@@ -309,7 +315,8 @@ sessions/        saved chats                           (clients)
 ```
 
 Files are `0600` and written atomically, so an interrupted save cannot corrupt a
-key or lose history.
+key or lose history. A `profiles.json.lock` sidecar serialises writers, so two
+alpaca processes updating profiles at once cannot lose each other's changes.
 
 ## Troubleshooting
 

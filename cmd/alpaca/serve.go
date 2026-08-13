@@ -39,7 +39,7 @@ func runServe(args []string) error {
 alpaca serve — expose the local ollama daemon as a networked API
 
   --port N          port to listen on (default 8080)
-  --bind ADDR       interface to bind (default 0.0.0.0, all interfaces)
+  --bind ADDR       address to bind (default: all interfaces, IPv4 and IPv6)
   --ollama URL      ollama daemon address (default http://127.0.0.1:11434)
   --name NAME       friendly name shown to clients (default: this hostname)
   --public HOST:PORT  advertise this internet-reachable address, for when you
@@ -59,7 +59,11 @@ alpaca serve — expose the local ollama daemon as a networked API
 	}
 
 	port := fs.Int("port", 8080, "")
-	bind := fs.String("bind", "0.0.0.0", "")
+	// The empty default is deliberate: it binds every interface on both stacks.
+	// "0.0.0.0" — the obvious-looking spelling — is IPv4-only, which quietly
+	// contradicted the ULA hints, mDNS AAAA records, and IPv6 public endpoint
+	// this command goes on to advertise.
+	bind := fs.String("bind", "", "")
 	ollamaURL := fs.String("ollama", "", "")
 	name := fs.String("name", "", "")
 	publicAddr := fs.String("public", "", "")
@@ -138,11 +142,10 @@ alpaca serve — expose the local ollama daemon as a networked API
 
 	// --- tls --------------------------------------------------------------
 
-	certDir, err := config.Path("certs", "placeholder")
+	certDir, err := config.Subdir("certs")
 	if err != nil {
 		return err
 	}
-	certDir = strings.TrimSuffix(certDir, string(os.PathSeparator)+"placeholder")
 
 	hosts := certHosts(*publicAddr)
 	var tlsIdentity *netx.Identity
@@ -156,6 +159,16 @@ alpaca serve — expose the local ollama daemon as a networked API
 	}
 	if err != nil {
 		return err
+	}
+	// The persisted certificate keeps the SANs it was minted with while the
+	// machine's addresses drift underneath it. Regenerating automatically would
+	// revoke every pinned client, so the honest move is to say so: alpaca's own
+	// client pins the fingerprint and does not care, but curl and browsers do.
+	if missing := tlsIdentity.MissingSANs(hosts); len(missing) > 0 {
+		log.Warn("the TLS certificate does not name this machine's current addresses; "+
+			"alpaca clients are unaffected, but curl or a browser would see a name mismatch",
+			"uncovered", strings.Join(missing, ", "),
+			"fix", "--rotate-cert reissues it (every linked client must then re-link)")
 	}
 
 	// --- listen -----------------------------------------------------------
@@ -222,6 +235,7 @@ alpaca serve — expose the local ollama daemon as a networked API
 
 	var mapping *portmap.Mapping
 	var mapErr error
+	var maintainDone chan struct{}
 	public := *publicAddr
 	publicKind := "manually configured"
 
@@ -233,7 +247,11 @@ alpaca serve — expose the local ollama daemon as a networked API
 			if mapping.Reachable() {
 				public = mapping.Endpoint()
 				publicKind = mapping.Method + " port forward"
-				go mapping.Maintain(ctx, log)
+				maintainDone = make(chan struct{})
+				go func() {
+					mapping.Maintain(ctx, log)
+					close(maintainDone)
+				}()
 			} else {
 				// The forward exists but the address behind it is not routable
 				// from the internet, so advertising it would only mislead.
@@ -300,6 +318,15 @@ alpaca serve — expose the local ollama daemon as a networked API
 	defer cancelShutdown()
 	_ = plainSrv.Shutdown(shutdownCtx)
 	_ = tlsSrv.Shutdown(shutdownCtx)
+	// Wait for Maintain to release the port forward: exiting first would leave
+	// the hole in the router open until the lease expires on its own.
+	if maintainDone != nil {
+		select {
+		case <-maintainDone:
+		case <-time.After(6 * time.Second):
+			log.Warn("gave up waiting for the router to release the port forward")
+		}
+	}
 	return nil
 }
 

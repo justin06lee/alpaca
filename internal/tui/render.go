@@ -8,6 +8,7 @@ import (
 
 	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/justin06lee/alpaca/internal/client"
 )
 
@@ -202,22 +203,6 @@ func fitWidth(text string, max int) int {
 	return widest
 }
 
-// indentPlain wraps user text without markdown processing, since what the user
-// typed should be shown back verbatim.
-func indentPlain(text string, width int) string {
-	if width < 10 {
-		width = 10
-	}
-	var out strings.Builder
-	for i, line := range strings.Split(text, "\n") {
-		if i > 0 {
-			out.WriteString("\n")
-		}
-		out.WriteString(lipgloss.NewStyle().Width(width).Render(line))
-	}
-	return out.String()
-}
-
 // conversation assembles the full chat pane content.
 //
 // Completed messages are rendered once and cached: re-running the markdown
@@ -351,13 +336,12 @@ func (m *Model) contentWidth() int {
 	return w
 }
 
+// truncate shortens a line to max cells. It must be ANSI-aware: status text
+// arrives here already styled, and slicing by rune could cut an escape
+// sequence in half, spilling raw bytes into the frame.
 func truncate(s string, max int) string {
 	if max <= 1 || lipgloss.Width(s) <= max {
 		return s
 	}
-	runes := []rune(s)
-	if len(runes) > max-1 {
-		runes = runes[:max-1]
-	}
-	return string(runes) + "…"
+	return ansi.Truncate(s, max, "…")
 }

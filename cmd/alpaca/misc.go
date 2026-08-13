@@ -222,10 +222,12 @@ func runProfiles(args []string) error {
 		if len(args) < 2 {
 			return errors.New("usage: alpaca profiles remove <name>")
 		}
-		if !profiles.Remove(args[1]) {
-			return fmt.Errorf("no profile named %q", args[1])
-		}
-		if err := profiles.Save(); err != nil {
+		if _, err := config.UpdateProfiles(func(p *config.Profiles) error {
+			if !p.Remove(args[1]) {
+				return fmt.Errorf("no profile named %q", args[1])
+			}
+			return nil
+		}); err != nil {
 			return err
 		}
 		fmt.Printf("removed %q\n", args[1])
@@ -236,11 +238,13 @@ func runProfiles(args []string) error {
 			fmt.Println(profiles.Default)
 			return nil
 		}
-		if _, ok := profiles.Entries[args[1]]; !ok {
-			return fmt.Errorf("no profile named %q", args[1])
-		}
-		profiles.Default = args[1]
-		if err := profiles.Save(); err != nil {
+		if _, err := config.UpdateProfiles(func(p *config.Profiles) error {
+			if _, ok := p.Entries[args[1]]; !ok {
+				return fmt.Errorf("no profile named %q", args[1])
+			}
+			p.Default = args[1]
+			return nil
+		}); err != nil {
 			return err
 		}
 		fmt.Printf("default is now %q\n", args[1])

@@ -44,8 +44,13 @@ type Server struct {
 	log  *slog.Logger
 }
 
-// New builds a gateway.
+// New builds a gateway. A nil Ollama client is a programming error and fails
+// here, loudly, rather than as a panic on the first request that dereferences
+// it.
 func New(opts Options) *Server {
+	if opts.Ollama == nil {
+		panic("server.New: Options.Ollama is required")
+	}
 	if opts.Logger == nil {
 		opts.Logger = slog.Default()
 	}
@@ -132,7 +137,12 @@ func (s *Server) handleInfo(w http.ResponseWriter, r *http.Request) {
 func (s *Server) logRequests(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
-		rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
+		// recoverPanics sits outside this middleware and already wrapped the
+		// writer; wrapping again would hide the written flag it relies on.
+		rec, ok := w.(*statusRecorder)
+		if !ok {
+			rec = &statusRecorder{ResponseWriter: w, status: http.StatusOK}
+		}
 		next.ServeHTTP(rec, r)
 
 		level := slog.LevelDebug
@@ -155,6 +165,7 @@ func (s *Server) logRequests(next http.Handler) http.Handler {
 // to run unattended for weeks.
 func (s *Server) recoverPanics(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
 		defer func() {
 			if v := recover(); v != nil {
 				// http.ErrAbortHandler is the documented way to abort a
@@ -164,10 +175,15 @@ func (s *Server) recoverPanics(next http.Handler) http.Handler {
 				}
 				s.log.Error("panic serving request",
 					"path", r.URL.Path, "panic", v, "stack", string(debug.Stack()))
-				writeError(w, http.StatusInternalServerError, "internal error", "internal_error")
+				// Only report the error if the response has not begun; once
+				// bytes are on the wire a second WriteHeader cannot correct
+				// anything, it can only corrupt the stream.
+				if !rec.wrote {
+					writeError(rec, http.StatusInternalServerError, "internal error", "internal_error")
+				}
 			}
 		}()
-		next.ServeHTTP(w, r)
+		next.ServeHTTP(rec, r)
 	})
 }
 
@@ -194,11 +210,21 @@ func withCORS(next http.Handler) http.Handler {
 type statusRecorder struct {
 	http.ResponseWriter
 	status int
+	// wrote flips once anything has gone to the client, at which point the
+	// status can no longer be changed.
+	wrote bool
 }
 
 func (r *statusRecorder) WriteHeader(code int) {
+	r.wrote = true
 	r.status = code
 	r.ResponseWriter.WriteHeader(code)
+}
+
+func (r *statusRecorder) Write(p []byte) (int, error) {
+	// A Write with no prior WriteHeader commits an implicit 200.
+	r.wrote = true
+	return r.ResponseWriter.Write(p)
 }
 
 // Unwrap lets http.ResponseController reach the underlying writer for

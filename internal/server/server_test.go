@@ -138,7 +138,11 @@ func TestAuthAcceptsBearerAndApiKeyHeader(t *testing.T) {
 
 // A server configured with no key must refuse everything rather than run open.
 func TestEmptyConfiguredKeyRefusesAll(t *testing.T) {
-	s := New(Options{APIKey: "", Logger: slog.New(slog.NewTextHandler(io.Discard, nil))})
+	client, err := ollama.New("http://127.0.0.1:1")
+	if err != nil {
+		t.Fatalf("ollama.New: %v", err)
+	}
+	s := New(Options{Ollama: client, APIKey: "", Logger: slog.New(slog.NewTextHandler(io.Discard, nil))})
 	if s.keyMatches("") {
 		t.Error("empty presented key matched an empty configured key — server would be wide open")
 	}
@@ -626,5 +630,76 @@ func TestUnreachableDaemonReportsBadGateway(t *testing.T) {
 	json.NewDecoder(resp.Body).Decode(&body)
 	if body.Error.Code != "ollama_unreachable" {
 		t.Errorf("code = %q, want ollama_unreachable", body.Error.Code)
+	}
+}
+
+func TestTrailingJSONIsRejected(t *testing.T) {
+	base := newGateway(t, streamingDaemon("hi"))
+
+	resp := do(t, http.MethodPost, base+"/v1/chat/completions", testKey,
+		`{"model":"m","messages":[{"role":"user","content":"x"}]}{"model":"smuggled"}`)
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400 for a body with two JSON documents", resp.StatusCode)
+	}
+}
+
+func TestOversizeBodyIs413(t *testing.T) {
+	base := newGateway(t, streamingDaemon("hi"))
+
+	// A single field bigger than the 32 MB cap.
+	huge := `{"model":"m","messages":[{"role":"user","content":"` +
+		strings.Repeat("a", maxRequestBytes+1024) + `"}]}`
+	resp := do(t, http.MethodPost, base+"/v1/chat/completions", testKey, huge)
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusRequestEntityTooLarge {
+		t.Fatalf("status = %d, want 413", resp.StatusCode)
+	}
+}
+
+func TestPanicRecoveryReports500(t *testing.T) {
+	client, err := ollama.New("http://127.0.0.1:1")
+	if err != nil {
+		t.Fatalf("ollama.New: %v", err)
+	}
+	s := New(Options{Ollama: client, APIKey: testKey,
+		Logger: slog.New(slog.NewTextHandler(io.Discard, nil))})
+
+	h := s.recoverPanics(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		panic("boom")
+	}))
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/x", nil))
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Errorf("status = %d, want 500", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "internal error") {
+		t.Errorf("body = %q, want the error envelope", rec.Body.String())
+	}
+}
+
+// Once bytes are on the wire the status cannot be corrected; recovery must not
+// append an error envelope to a half-sent response.
+func TestPanicAfterResponseStartedDoesNotRewrite(t *testing.T) {
+	client, err := ollama.New("http://127.0.0.1:1")
+	if err != nil {
+		t.Fatalf("ollama.New: %v", err)
+	}
+	s := New(Options{Ollama: client, APIKey: testKey,
+		Logger: slog.New(slog.NewTextHandler(io.Discard, nil))})
+
+	h := s.recoverPanics(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, "partial")
+		panic("boom")
+	}))
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/x", nil))
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("status = %d, want the implicit 200 that was already committed", rec.Code)
+	}
+	if rec.Body.String() != "partial" {
+		t.Errorf("body = %q, want only what the handler wrote before panicking", rec.Body.String())
 	}
 }

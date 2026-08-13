@@ -104,16 +104,22 @@ func deriveTitle(prompt string) string {
 	fields := strings.FieldsFunc(prompt, unicode.IsSpace)
 	title := strings.Join(fields, " ")
 
+	// Measured in runes, not bytes: a CJK or emoji prompt sliced at a byte
+	// offset could split a rune and corrupt the title.
 	const maxLen = 48
-	if len(title) <= maxLen {
+	runes := []rune(title)
+	if len(runes) <= maxLen {
 		return title
 	}
+	cut := runes[:maxLen]
 	// Cut at a word boundary when there is one nearby, to avoid mid-word truncation.
-	cut := title[:maxLen]
-	if idx := strings.LastIndex(cut, " "); idx > maxLen/2 {
-		cut = cut[:idx]
+	for i := len(cut) - 1; i > maxLen/2; i-- {
+		if cut[i] == ' ' {
+			cut = cut[:i]
+			break
+		}
 	}
-	return cut + "…"
+	return string(cut) + "…"
 }
 
 // Store is the on-disk collection of sessions.
@@ -123,11 +129,11 @@ type Store struct {
 
 // NewStore opens the session directory.
 func NewStore() (*Store, error) {
-	dir, err := config.Path("sessions", "placeholder")
+	dir, err := config.Subdir("sessions")
 	if err != nil {
 		return nil, err
 	}
-	return &Store{dir: filepath.Dir(dir)}, nil
+	return &Store{dir: dir}, nil
 }
 
 func (s *Store) path(id string) string {

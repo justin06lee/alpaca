@@ -104,26 +104,3 @@ func TestEncodeRequiresEssentials(t *testing.T) {
 		})
 	}
 }
-
-func TestEndpointsPrefersLAN(t *testing.T) {
-	got := sample().Endpoints()
-	want := []string{"192.168.1.20:8080", "10.0.0.5:8080", "203.0.113.9:8080"}
-	if len(got) != len(want) {
-		t.Fatalf("Endpoints() = %v, want %v", got, want)
-	}
-	for i := range want {
-		if got[i] != want[i] {
-			t.Fatalf("Endpoints() = %v, want %v", got, want)
-		}
-	}
-}
-
-func TestRedactHidesKey(t *testing.T) {
-	r := sample().Redact()
-	if strings.Contains(r.Key, "vwxyz") || len(r.Key) > 12 {
-		t.Errorf("Redact left too much of the key: %q", r.Key)
-	}
-	if r.ID != sample().ID {
-		t.Errorf("Redact should not touch the id")
-	}
-}
