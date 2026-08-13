@@ -131,22 +131,27 @@ func (m *Model) renderComposer(width int) string {
 	if !m.streaming {
 		frame = styleComposerActive
 	}
-	// Width on a bordered style is the inner width, and the border eats two
-	// columns; padding takes two more.
+	// The border eats two columns and the padding two more, so the text gets
+	// width-4. The frame's Width covers content plus padding — lipgloss wraps
+	// content at Width minus padding — so it must be inner+2. Setting it to
+	// inner wrapped the textarea's cursor line, whose styled trailing spaces
+	// survive the word-wrapper where bare ones are dropped, and the composer
+	// grew a phantom row the moment anything was typed.
 	inner := width - 4
 	if inner < 8 {
 		inner = 8
 	}
+	frameWidth := inner + 2
 
 	if m.streaming {
 		body := m.spinner.View() + " " + styleMuted.Render(m.thinkingLabel()+
 			strings.Repeat(" ", maxInt(0, inner-lipgloss.Width(m.thinkingLabel())-2)))
-		return frame.Width(inner).Render(body + "\n" +
+		return frame.Width(frameWidth).Render(body + "\n" +
 			styleFaint.Render("esc to stop") + "\n")
 	}
 
 	m.input.SetWidth(inner)
-	return frame.Width(inner).Render(m.input.View())
+	return frame.Width(frameWidth).Render(m.input.View())
 }
 
 // thinkingLabel is the rotating status shown before the first token lands.
@@ -216,6 +221,10 @@ func renderSprite(art []string) string {
 	palette := splashPalette(false)
 	widest := widestRow(art)
 
+	// Every line keeps its full width, trailing blanks included. The caller
+	// centres these lines individually, so trimming them would centre each row
+	// on its own content and shear the sprite sideways wherever the art's
+	// right edge moves.
 	var lines []string
 	for row := 0; row*2 < len(art); row++ {
 		var b strings.Builder
@@ -224,7 +233,7 @@ func renderSprite(art []string) string {
 			bottom := pixelAt(art, x, row*2+1)
 			b.WriteString(halfBlock(top, bottom, palette, palette))
 		}
-		lines = append(lines, strings.TrimRight(b.String(), " "))
+		lines = append(lines, b.String())
 	}
 	return strings.Join(lines, "\n")
 }

@@ -5,10 +5,13 @@ import (
 	"strings"
 	"testing"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/justin06lee/alpaca/internal/client"
 	"github.com/justin06lee/alpaca/internal/config"
 	"github.com/justin06lee/alpaca/internal/session"
+	"github.com/muesli/termenv"
 )
 
 // newTestModel builds a Model backed by a temp store. The client is nil, so
@@ -474,3 +477,76 @@ func TestTruncateIsANSIAware(t *testing.T) {
 type errFake struct{ msg string }
 
 func (e errFake) Error() string { return e.msg }
+
+// Typing must not change the composer's shape. The frame's Width covers
+// content plus padding; when it was set two columns too tight, lipgloss
+// wrapped the textarea's cursor line — whose styled trailing spaces survive
+// the word-wrapper where bare ones are dropped — and the box grew a phantom
+// row on the first keypress, shifting the whole welcome screen up. The bug
+// only shows with colours on, because colourless trailing spaces are trimmed.
+func TestComposerKeepsItsShapeWhileTyping(t *testing.T) {
+	old := lipgloss.ColorProfile()
+	lipgloss.SetColorProfile(termenv.TrueColor)
+	defer lipgloss.SetColorProfile(old)
+
+	m := newTestModel(t)
+	m.splashDone = true
+	m.Update(tea.WindowSizeMsg{Width: 117, Height: 40})
+
+	shape := func() (top, rows, width int) {
+		lines := strings.Split(m.View(), "\n")
+		top = -1
+		for i, l := range lines {
+			s := ansi.Strip(l)
+			if strings.Contains(s, "╭") {
+				top = i
+				width = lipgloss.Width(strings.TrimSpace(s))
+			}
+			if strings.Contains(s, "│") || strings.Contains(s, "╭") || strings.Contains(s, "╰") {
+				rows++
+			}
+		}
+		return top, rows, width
+	}
+
+	beforeTop, beforeRows, beforeWidth := shape()
+	for _, r := range "hello?" {
+		m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
+	}
+	afterTop, afterRows, afterWidth := shape()
+
+	if beforeTop != afterTop {
+		t.Errorf("composer top moved from row %d to %d after typing", beforeTop, afterTop)
+	}
+	if beforeRows != afterRows {
+		t.Errorf("composer grew from %d to %d rows after typing", beforeRows, afterRows)
+	}
+	if beforeWidth != afterWidth {
+		t.Errorf("composer width changed from %d to %d after typing", beforeWidth, afterWidth)
+	}
+}
+
+// The requested composer width is the box's outer width, border included.
+func TestComposerRendersAtTheRequestedWidth(t *testing.T) {
+	m := newTestModel(t)
+	m.Update(tea.WindowSizeMsg{Width: 117, Height: 40})
+
+	box := strings.Split(m.renderComposer(74), "\n")
+	if got := lipgloss.Width(box[0]); got != 74 {
+		t.Errorf("outer width = %d, want the requested 74", got)
+	}
+	if len(box) != composerRows {
+		t.Errorf("box has %d rows, want %d", len(box), composerRows)
+	}
+}
+
+// Sprite rows are all rendered at the art's full width so that per-line
+// centring cannot shear the image.
+func TestSpriteRowsAreFullWidth(t *testing.T) {
+	want := widestRow(miniAlpaca)
+	for i, l := range strings.Split(renderSprite(miniAlpaca), "\n") {
+		if got := lipgloss.Width(l); got != want {
+			t.Errorf("sprite row %d is %d cells wide, want %d", i, got, want)
+		}
+	}
+}

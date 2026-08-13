@@ -189,8 +189,14 @@ func splashArt(withAnimal bool) []string {
 	if !withAnimal {
 		return mark
 	}
+	// The animal is drawn on its own narrow canvas; shift it here so it sits
+	// centred over the wordmark, since the renderer aligns every row of the
+	// combined image to a single left edge.
+	pad := strings.Repeat(string(pxEmpty), maxInt(0, (widestRow(mark)-widestRow(alpacaPixels))/2))
 	rows := make([]string, 0, len(alpacaPixels)+1+len(mark))
-	rows = append(rows, alpacaPixels...)
+	for _, row := range alpacaPixels {
+		rows = append(rows, pad+row)
+	}
 	rows = append(rows, "")
 	return append(rows, mark...)
 }
@@ -278,6 +284,10 @@ func renderSplash(width, height, scan int, tagline string) string {
 	}
 
 	visible := minInt(scan, len(art))
+	// Every line keeps its full width, trailing blanks included. The centring
+	// below aligns each line individually, so trimming would centre every row
+	// on its own content: rows whose art ends early — the animal's head, the
+	// top strokes of the letters — would drift sideways relative to the rest.
 	var lines []string
 
 	if layout.half {
@@ -292,7 +302,7 @@ func renderSplash(width, height, scan int, tagline string) string {
 				}
 				b.WriteString(halfBlock(topKey, bottomKey, paletteFor(top), paletteFor(bottom)))
 			}
-			lines = append(lines, strings.TrimRight(b.String(), " "))
+			lines = append(lines, b.String())
 		}
 	} else {
 		block := strings.Repeat("█", layout.pixelWidth)
@@ -308,7 +318,7 @@ func renderSplash(width, height, scan int, tagline string) string {
 					b.WriteString(blank)
 				}
 			}
-			lines = append(lines, strings.TrimRight(b.String(), " "))
+			lines = append(lines, b.String())
 		}
 	}
 

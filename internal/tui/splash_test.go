@@ -7,6 +7,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/justin06lee/alpaca/internal/client"
 	"github.com/justin06lee/alpaca/internal/config"
 	"github.com/justin06lee/alpaca/internal/session"
@@ -343,5 +344,63 @@ func TestQuitDuringConnectDoesNotPanic(t *testing.T) {
 	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
 	if cmd == nil {
 		t.Fatal("ctrl+c during connect produced no command, want quit")
+	}
+}
+
+// Every row of the rendered image must sit on one shared left edge. The
+// renderer centres lines individually, so a row trimmed to its own content —
+// the animal's head, the top strokes of the letters — would drift sideways
+// relative to wider rows below it, shearing the artwork.
+func TestSplashRowsShareOneLeftEdge(t *testing.T) {
+	layout := layoutFor(100, 60)
+	if layout.half {
+		t.Fatal("expected the chunky layout at this size")
+	}
+
+	rendered := strings.Split(renderSplash(100, 60, 999, ""), "\n")
+
+	// Art rows start after the vertical centring pad, one per line.
+	topPad := 0
+	for _, l := range rendered {
+		if strings.TrimSpace(ansi.Strip(l)) == "" {
+			topPad++
+			continue
+		}
+		break
+	}
+
+	offset := -1
+	for i, artRow := range layout.art {
+		if strings.Trim(artRow, ".") == "" {
+			continue
+		}
+		leadingPixels := len(artRow) - len(strings.TrimLeft(artRow, "."))
+
+		s := ansi.Strip(rendered[topPad+i])
+		firstBlock := strings.IndexRune(s, '█')
+		if firstBlock < 0 {
+			t.Fatalf("art row %d rendered with no pixels", i)
+		}
+		rowOffset := firstBlock - leadingPixels*layout.pixelWidth
+		if offset < 0 {
+			offset = rowOffset
+		}
+		if rowOffset != offset {
+			t.Errorf("art row %d sits at offset %d, want %d — rows are centred on their own content", i, rowOffset, offset)
+		}
+	}
+}
+
+// The animal must sit centred over the wordmark, not flush against the canvas
+// edge, now that all rows share one left edge.
+func TestSplashAnimalIsCentredOverTheWordmark(t *testing.T) {
+	art := splashArt(true)
+	mark := wordmark()
+
+	animalRow := art[10] // a body row, the animal's widest part
+	leading := len(animalRow) - len(strings.TrimLeft(animalRow, "."))
+	trailing := widestRow(mark) - len(strings.TrimRight(animalRow, "."))
+	if diff := leading - trailing; diff < -4 || diff > 4 {
+		t.Errorf("animal margins are %d and %d pixels — it is not centred over the wordmark", leading, trailing)
 	}
 }
