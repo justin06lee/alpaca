@@ -24,6 +24,9 @@ type (
 	splashTickMsg    time.Time
 	slideTickMsg     time.Time
 	statusExpiredMsg int
+	// copiedExpiredMsg reverts a code block's "copied!" control; the int is
+	// the copiedSeq it belongs to, so a stale timer cannot undo a newer copy.
+	copiedExpiredMsg int
 	streamClosedMsg  struct{}
 
 	modelsMsg struct {

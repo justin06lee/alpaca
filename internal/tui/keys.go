@@ -40,10 +40,10 @@ func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m *Model) handleChatKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	// The attachment popup is modal: its keys must not fall through and type
-	// into the composer underneath it.
-	if m.viewAttach >= 0 {
-		return m, m.handleAttachViewKey(msg)
+	// The full-content popups are modal: their keys must not fall through
+	// and type into the composer underneath them.
+	if m.viewAttach >= 0 || m.viewMsg >= 0 {
+		return m, m.handlePopupKey(msg)
 	}
 	if m.attachFocus >= 0 {
 		return m.handleChipKey(msg)
@@ -204,9 +204,10 @@ func (m *Model) handleMouse(msg tea.MouseMsg) tea.Cmd {
 	if !m.splashDone || m.showHelp {
 		return nil
 	}
+	popupOpen := m.viewAttach >= 0 || m.viewMsg >= 0
 	switch msg.Button {
 	case tea.MouseButtonWheelUp:
-		if m.viewAttach >= 0 {
+		if popupOpen {
 			m.attachScroll = maxInt(0, m.attachScroll-wheelStep)
 			return nil
 		}
@@ -216,7 +217,7 @@ func (m *Model) handleMouse(msg tea.MouseMsg) tea.Cmd {
 		}
 		m.viewport.LineUp(wheelStep)
 	case tea.MouseButtonWheelDown:
-		if m.viewAttach >= 0 {
+		if popupOpen {
 			m.attachScroll += wheelStep // clamped against the content when rendered
 			return nil
 		}
@@ -226,7 +227,7 @@ func (m *Model) handleMouse(msg tea.MouseMsg) tea.Cmd {
 		}
 		m.viewport.LineDown(wheelStep)
 	case tea.MouseButtonLeft:
-		if msg.Action != tea.MouseActionPress || m.mode != pickerNone || m.viewAttach >= 0 {
+		if msg.Action != tea.MouseActionPress || m.mode != pickerNone || popupOpen {
 			return nil
 		}
 		return m.clickTranscript(msg.X, msg.Y)

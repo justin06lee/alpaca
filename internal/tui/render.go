@@ -232,6 +232,23 @@ func fitWidth(text string, max int) int {
 	return widest
 }
 
+// msgRange is which transcript lines one message's rendering occupies, so a
+// mouse click can be traced back to the message under it.
+type msgRange struct {
+	start, end int // inclusive line indexes into paneLines
+	msg        int // index into sess.Messages
+}
+
+// messageAt is the message whose rendering covers the given transcript line.
+func (m *Model) messageAt(line int) (int, bool) {
+	for _, r := range m.msgRanges {
+		if line >= r.start && line <= r.end {
+			return r.msg, true
+		}
+	}
+	return 0, false
+}
+
 // conversation assembles the full chat pane content.
 //
 // Completed messages are rendered once and cached: re-running the markdown
@@ -240,18 +257,27 @@ func fitWidth(text string, max int) int {
 func (m *Model) conversation() string {
 	var b strings.Builder
 
+	line := 0
 	if m.sess.System != "" {
 		b.WriteString(styleSystemNote.Render("▌ system prompt active — /system to change"))
 		b.WriteString("\n\n")
+		line += 2
 	}
 
+	m.msgRanges = m.msgRanges[:0]
 	for i, msg := range m.sess.Messages {
+		var rendered string
 		if i < len(m.rendered) {
-			b.WriteString(m.rendered[i])
+			rendered = m.rendered[i]
 		} else {
-			b.WriteString(m.renderMessage(msg))
+			rendered = m.renderMessage(msg)
 		}
+		b.WriteString(rendered)
 		b.WriteString("\n\n")
+
+		rows := strings.Count(rendered, "\n") + 1
+		m.msgRanges = append(m.msgRanges, msgRange{start: line, end: line + rows - 1, msg: i})
+		line += rows + 1 // the blank row between messages
 	}
 
 	if m.streaming {
@@ -268,6 +294,9 @@ func (m *Model) conversation() string {
 			// The same breathing room the finished message gets from
 			// assistantBlock, so nothing shifts when the reply commits.
 			b.WriteString("\n")
+			// Blocks in the streaming reply are numbered after every
+			// committed one, matching the order collectCodeBlocks walks.
+			m.blockSeq = countCodeBlocks(m.sess.Messages)
 			b.WriteString(m.renderRichText(m.streamBuf))
 		}
 		b.WriteString("\n\n")
@@ -279,6 +308,7 @@ func (m *Model) conversation() string {
 // rebuildCache re-renders every message, used after a resize changes the wrap
 // width or after the model name in the label changes.
 func (m *Model) rebuildCache() {
+	m.blockSeq = 0 // code blocks number from the top on a full re-render
 	m.rendered = m.rendered[:0]
 	for _, msg := range m.sess.Messages {
 		m.rendered = append(m.rendered, m.renderMessage(msg))
@@ -290,6 +320,9 @@ func (m *Model) cacheLast() {
 	if len(m.sess.Messages) == 0 {
 		return
 	}
+	// Blocks in the messages being rendered continue the numbering of the
+	// ones already cached.
+	m.blockSeq = countCodeBlocks(m.sess.Messages[:minInt(len(m.rendered), len(m.sess.Messages))])
 	idx := len(m.sess.Messages) - 1
 	for len(m.rendered) < idx {
 		m.rendered = append(m.rendered, m.renderMessage(m.sess.Messages[len(m.rendered)]))

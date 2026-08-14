@@ -231,11 +231,13 @@ func (m *Model) handleChipKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 // attachViewPage is how far pgup/pgdn move the popup, in lines.
 const attachViewPage = 10
 
-// handleAttachViewKey drives the full-content popup.
-func (m *Model) handleAttachViewKey(msg tea.KeyMsg) tea.Cmd {
+// handlePopupKey drives whichever full-content popup is open: a staged
+// attachment, or a sent message opened by clicking its bubble.
+func (m *Model) handlePopupKey(msg tea.KeyMsg) tea.Cmd {
 	switch msg.Type {
 	case tea.KeyEsc, tea.KeyEnter:
 		m.viewAttach = -1
+		m.viewMsg = -1
 		return nil
 	case tea.KeyUp:
 		m.attachScroll = maxInt(0, m.attachScroll-1)
@@ -252,17 +254,62 @@ func (m *Model) handleAttachViewKey(msg tea.KeyMsg) tea.Cmd {
 	}
 
 	if msg.String() == "y" || msg.String() == "c" {
-		if m.viewAttach < len(m.attachments) {
-			a := m.attachments[m.viewAttach]
-			if a.kind == attachText {
-				if err := clipboard.WriteAll(a.content); err != nil {
-					return m.setStatus("clipboard unavailable: "+err.Error(), true)
-				}
-				return m.setStatus(fmt.Sprintf("copied %d lines", a.lines), false)
+		if text, ok := m.popupCopyText(); ok {
+			if err := clipboard.WriteAll(text); err != nil {
+				return m.setStatus("clipboard unavailable: "+err.Error(), true)
 			}
+			return m.setStatus(fmt.Sprintf("copied %d lines", strings.Count(text, "\n")+1), false)
 		}
 	}
 	return nil
+}
+
+// popupCopyText is what y puts on the clipboard for the open popup.
+func (m *Model) popupCopyText() (string, bool) {
+	if m.viewAttach >= 0 && m.viewAttach < len(m.attachments) {
+		if a := m.attachments[m.viewAttach]; a.kind == attachText {
+			return a.content, true
+		}
+		return "", false // an image path is not what anyone means by copy
+	}
+	if m.viewMsg >= 0 && m.viewMsg < len(m.sess.Messages) {
+		return m.sess.Messages[m.viewMsg].Content, true
+	}
+	return "", false
+}
+
+// popupFrame is the shared geometry of the full-content popups.
+func (m *Model) popupFrame() (outer, inner, rows int) {
+	outer = clampInt(m.width*78/100, 40, 110)
+	if m.width < outer+2 || m.height < 12 {
+		outer = maxInt(20, m.width-2)
+	}
+	return outer, outer - 4, clampInt(m.height-10, 4, 32)
+}
+
+// floatPopup assembles a titled panel and floats it over the chat.
+func (m *Model) floatPopup(base, title string, body []string, footer string, outer int) string {
+	inner := outer - 4
+	content := []string{stylePickerTitle.Render(truncate(title, inner)), ""}
+	content = append(content, body...)
+	content = append(content, "", styleFaint.Render(truncate(footer, inner)))
+
+	popup := panel(strings.Join(content, "\n"), outer)
+	x := (m.width - outer) / 2
+	y := maxInt(1, (m.height-(len(content)+2))/2)
+	return overlay(base, popup, x, y)
+}
+
+// popupWindow slices the visible lines out of the full content, clamping the
+// scroll and reporting the window for the title.
+func (m *Model) popupWindow(lines []string, inner, rows int) (body []string, first, last int) {
+	m.attachScroll = clampInt(m.attachScroll, 0, maxInt(0, len(lines)-rows))
+	last = minInt(len(lines), m.attachScroll+rows)
+	for _, line := range lines[m.attachScroll:last] {
+		line = strings.ReplaceAll(line, "\t", "    ")
+		body = append(body, truncate(line, inner))
+	}
+	return body, m.attachScroll + 1, last
 }
 
 // attachmentPopover floats the full content of one attachment over the chat:
@@ -272,41 +319,32 @@ func (m *Model) attachmentPopover(base string) string {
 		return base
 	}
 	a := &m.attachments[m.viewAttach]
+	outer, inner, rows := m.popupFrame()
 
-	outer := clampInt(m.width*78/100, 40, 110)
-	if m.width < outer+2 || m.height < 12 {
-		outer = maxInt(20, m.width-2)
-	}
-	inner := outer - 4
-	rows := clampInt(m.height-10, 4, 32)
-
-	var title, footer string
-	var body []string
 	if a.kind == attachImage {
-		title = fmt.Sprintf("image #%d · %s · %d×%d", m.viewAttach+1, a.name, a.imgW, a.imgH)
-		footer = "esc to close"
-		body = strings.Split(m.imagePreview(a, inner, rows), "\n")
-	} else {
-		lines := strings.Split(a.content, "\n")
-		m.attachScroll = clampInt(m.attachScroll, 0, maxInt(0, len(lines)-rows))
-		last := minInt(len(lines), m.attachScroll+rows)
-		title = fmt.Sprintf("paste #%d · lines %d–%d of %d",
-			m.viewAttach+1, m.attachScroll+1, last, len(lines))
-		footer = "↑/↓ scroll · y copy · esc close"
-		for _, line := range lines[m.attachScroll:last] {
-			line = strings.ReplaceAll(line, "\t", "    ")
-			body = append(body, truncate(line, inner))
-		}
+		title := fmt.Sprintf("image #%d · %s · %d×%d", m.viewAttach+1, a.name, a.imgW, a.imgH)
+		body := strings.Split(m.imagePreview(a, inner, rows), "\n")
+		return m.floatPopup(base, title, body, "esc to close", outer)
 	}
 
-	content := []string{stylePickerTitle.Render(truncate(title, inner)), ""}
-	content = append(content, body...)
-	content = append(content, "", styleFaint.Render(truncate(footer, inner)))
+	lines := strings.Split(a.content, "\n")
+	body, first, last := m.popupWindow(lines, inner, rows)
+	title := fmt.Sprintf("paste #%d · lines %d–%d of %d", m.viewAttach+1, first, last, len(lines))
+	return m.floatPopup(base, title, body, "↑/↓ scroll · y copy · esc close", outer)
+}
 
-	popup := panel(strings.Join(content, "\n"), outer)
-	x := (m.width - outer) / 2
-	y := maxInt(1, (m.height-(len(content)+2))/2)
-	return overlay(base, popup, x, y)
+// messagePopover floats a sent message in full — the unfolded version of a
+// bubble the transcript shows only the head of.
+func (m *Model) messagePopover(base string) string {
+	if m.viewMsg < 0 || m.viewMsg >= len(m.sess.Messages) {
+		return base
+	}
+	outer, inner, rows := m.popupFrame()
+
+	lines := strings.Split(m.sess.Messages[m.viewMsg].Content, "\n")
+	body, first, last := m.popupWindow(lines, inner, rows)
+	title := fmt.Sprintf("your message · lines %d–%d of %d", first, last, len(lines))
+	return m.floatPopup(base, title, body, "↑/↓ scroll · y copy · esc close", outer)
 }
 
 // imagePreview renders the image with half blocks, two pixels per cell, each
