@@ -252,8 +252,13 @@ connection is text-only, so the model is told an image was attached but never
 receives it.
 
 Replies render their fenced code in framed blocks: a header rule names the
-language and carries a `⧉ copy` control you can click with the mouse;
-`ctrl+g` copies the newest block without reaching for it.
+language and carries a `⧉ copy` control you can click with the mouse — it
+flashes `✓ copied!` when the copy lands — and `ctrl+g` copies the newest
+block without reaching for it.
+
+Long sent messages fold in their bubble (`… +26 more lines`); click any of
+your bubbles to read the whole message in a scrollable popup, `y` to copy it,
+`esc` to close.
 
 ### shift+enter
 

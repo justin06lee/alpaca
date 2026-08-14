@@ -75,8 +75,20 @@ type Model struct {
 	attachScroll int
 
 	// paneLines mirrors the viewport's content so a mouse click can be mapped
-	// back to the transcript line under it.
+	// back to the transcript line under it, and msgRanges records which of
+	// those lines belong to which message.
 	paneLines []string
+	msgRanges []msgRange
+
+	// viewMsg is the sent message open in the full-content popup; -1 closed.
+	viewMsg int
+
+	// blockSeq numbers code blocks as the transcript renders; copiedBlock is
+	// the one whose control reads "copied!" until the flash expires, and
+	// copiedSeq guards stale expiry timers the same way statusSeq does.
+	blockSeq    int
+	copiedBlock int
+	copiedSeq   int
 
 	// splashScan is how many rows of the opening image have been painted.
 	splashScan int
@@ -151,6 +163,8 @@ func New(connect Connector, store *session.Store, profiles *config.Profiles, pro
 		spinner:     spin,
 		attachFocus: -1,
 		viewAttach:  -1,
+		viewMsg:     -1,
+		copiedBlock: -1,
 	}
 }
 
@@ -260,6 +274,15 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if int(msg) == m.statusSeq {
 			m.status = ""
 			m.statusErr = false
+		}
+		return m, nil
+
+	case copiedExpiredMsg:
+		// Only revert if this timer belongs to the latest copy.
+		if int(msg) == m.copiedSeq && m.copiedBlock >= 0 {
+			m.copiedBlock = -1
+			m.rebuildCache()
+			m.refreshViewport(true)
 		}
 		return m, nil
 
@@ -373,6 +396,8 @@ func (m *Model) View() string {
 		return m.sessionSidebar(base)
 	case m.viewAttach >= 0:
 		return m.attachmentPopover(base)
+	case m.viewMsg >= 0:
+		return m.messagePopover(base)
 	}
 	return base
 }

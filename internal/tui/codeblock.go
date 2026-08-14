@@ -3,6 +3,7 @@ package tui
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/atotto/clipboard"
 	tea "github.com/charmbracelet/bubbletea"
@@ -13,8 +14,15 @@ import (
 
 // copyMarker is the clickable control on a code block's header line. The
 // renderer and the click handler match on this exact text, so it lives in one
-// place.
-const copyMarker = "⧉ copy"
+// place. copiedMarker replaces it for a moment after a successful copy — the
+// button itself is the only place the eye is guaranteed to be right then.
+const (
+	copyMarker   = "⧉ copy"
+	copiedMarker = "✓ copied!"
+)
+
+// copiedFlash is how long the control reads "copied!" before reverting.
+const copiedFlash = 2 * time.Second
 
 // mdSegment is a run of markdown: either prose, or the inside of one fenced
 // code block.
@@ -91,7 +99,13 @@ func (m *Model) renderRichText(text string) string {
 // the copy control, the highlighted code, and a closing rule.
 //
 //	─ go ─────────────────────────────── ⧉ copy ──
+//
+// Blocks are numbered as they render via m.blockSeq, which is how the one
+// whose control was just clicked knows to read "copied!" for a moment.
 func (m *Model) renderCodeBlock(seg mdSegment) string {
+	idx := m.blockSeq
+	m.blockSeq++
+
 	width := m.contentWidth()
 
 	lang := seg.lang
@@ -99,13 +113,17 @@ func (m *Model) renderCodeBlock(seg mdSegment) string {
 		lang = "code"
 	}
 	label := " " + lang + " "
-	tail := " " + copyMarker + " "
+
+	tail, tailStyle := " "+copyMarker+" ", styleStatusKey
+	if idx == m.copiedBlock {
+		tail, tailStyle = " "+copiedMarker+" ", styleWarn
+	}
 
 	header := styleFaint.Render(strings.Repeat("─", maxInt(1, width)))
 	if rule := width - 3 - lipgloss.Width(label) - lipgloss.Width(tail); rule >= 1 {
 		header = styleFaint.Render("─") + styleMuted.Render(label) +
 			styleFaint.Render(strings.Repeat("─", rule)) +
-			styleStatusKey.Render(tail) + styleFaint.Render("──")
+			tailStyle.Render(tail) + styleFaint.Render("──")
 	}
 
 	// The fence goes back around the body so glamour applies its syntax
@@ -142,7 +160,25 @@ func (m *Model) collectCodeBlocks() []mdSegment {
 	return out
 }
 
-// copyCodeBlock puts the idx-th block on the clipboard.
+// countCodeBlocks is how many fenced blocks the model-side messages carry —
+// the render sequence base for anything drawn after them.
+func countCodeBlocks(msgs []client.Message) int {
+	n := 0
+	for _, msg := range msgs {
+		if msg.Role != client.RoleAssistant && msg.Role != client.RoleSystem {
+			continue
+		}
+		for _, seg := range splitFences(msg.Content) {
+			if seg.code {
+				n++
+			}
+		}
+	}
+	return n
+}
+
+// copyCodeBlock puts the idx-th block on the clipboard and flips its header
+// control to "copied!" until the flash expires.
 func (m *Model) copyCodeBlock(idx int) tea.Cmd {
 	blocks := m.collectCodeBlocks()
 	if idx < 0 || idx >= len(blocks) {
@@ -152,8 +188,21 @@ func (m *Model) copyCodeBlock(idx int) tea.Cmd {
 	if err := clipboard.WriteAll(body); err != nil {
 		return m.setStatus("clipboard unavailable: "+err.Error(), true)
 	}
+
+	m.copiedBlock = idx
+	m.copiedSeq++
+	seq := m.copiedSeq
+	// The header text lives inside cached message renders, so the cache has
+	// to be rebuilt for the flash to show — and again when it reverts. Two
+	// rebuilds per deliberate click is nothing; per-token would be the sin.
+	m.rebuildCache()
+	m.refreshViewport(true)
+
 	lines := strings.Count(body, "\n") + 1
-	return m.setStatus(fmt.Sprintf("copied code block %d of %d · %d lines", idx+1, len(blocks), lines), false)
+	return tea.Batch(
+		m.setStatus(fmt.Sprintf("copied code block %d of %d · %d lines", idx+1, len(blocks), lines), false),
+		tea.Tick(copiedFlash, func(time.Time) tea.Msg { return copiedExpiredMsg(seq) }),
+	)
 }
 
 // copyLastCodeBlock is the keyboard path: the newest block is almost always
@@ -166,8 +215,9 @@ func (m *Model) copyLastCodeBlock() tea.Cmd {
 	return m.copyCodeBlock(len(blocks) - 1)
 }
 
-// clickTranscript maps a left click to the transcript line under it and, when
-// that line is a code header's copy control, copies the block it belongs to.
+// clickTranscript maps a left click to the transcript line under it: a code
+// header's copy control copies its block, and a click inside one of the
+// user's own bubbles opens the full prompt in a popup.
 func (m *Model) clickTranscript(x, y int) tea.Cmd {
 	row := y - headerHeight
 	if row < 0 || row >= m.viewport.Height {
@@ -179,12 +229,20 @@ func (m *Model) clickTranscript(x, y int) tea.Cmd {
 	}
 
 	line := ansi.Strip(m.paneLines[idx])
-	if !isCodeHeader(line) {
+	if isCodeHeader(line) {
+		return m.clickCodeHeader(line, idx, x)
+	}
+	return m.clickBubble(idx, x)
+}
+
+func (m *Model) clickCodeHeader(line string, idx, x int) tea.Cmd {
+	// Only the control itself is clickable, with a cell of slack either side;
+	// a click on the rest of the rule is someone selecting text. A header
+	// mid-flash says "copied!" instead — that one has nothing left to do.
+	at := strings.Index(line, copyMarker)
+	if at < 0 {
 		return nil
 	}
-	// Only the control itself is clickable, with a cell of slack either side;
-	// a click on the rest of the rule is someone selecting text.
-	at := strings.Index(line, copyMarker)
 	col := lipgloss.Width(line[:at])
 	if x < col-1 || x > col+lipgloss.Width(copyMarker)+1 {
 		return nil
@@ -199,9 +257,34 @@ func (m *Model) clickTranscript(x, y int) tea.Cmd {
 	return m.copyCodeBlock(which)
 }
 
-// isCodeHeader recognises a rendered code block header. Requiring the leading
-// rule keeps a literal "⧉ copy" inside someone's message from miscounting the
-// blocks: transcript text never starts a line with the rule character.
+// clickBubble opens the popup when the click lands inside a user bubble — on
+// its text or its border, not the empty space the right-aligned block pads
+// itself with.
+func (m *Model) clickBubble(idx, x int) tea.Cmd {
+	msgIdx, ok := m.messageAt(idx)
+	if !ok || m.sess.Messages[msgIdx].Role != client.RoleUser {
+		return nil
+	}
+
+	line := ansi.Strip(m.paneLines[idx])
+	left := lipgloss.Width(line) - lipgloss.Width(strings.TrimLeft(line, " "))
+	right := lipgloss.Width(strings.TrimRight(line, " "))
+	if x < left || x >= right {
+		return nil
+	}
+
+	m.viewMsg = msgIdx
+	m.attachScroll = 0
+	return nil
+}
+
+// isCodeHeader recognises a rendered code block header, whichever label the
+// control is showing. Requiring the leading rule keeps a literal "⧉ copy"
+// inside someone's message from miscounting the blocks: transcript text never
+// starts a line with the rule character.
 func isCodeHeader(stripped string) bool {
-	return strings.HasPrefix(stripped, "─") && strings.Contains(stripped, copyMarker)
+	if !strings.HasPrefix(stripped, "─") {
+		return false
+	}
+	return strings.Contains(stripped, copyMarker) || strings.Contains(stripped, copiedMarker)
 }
