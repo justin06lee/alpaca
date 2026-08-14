@@ -12,10 +12,10 @@ import (
 	"github.com/justin06lee/alpaca/internal/session"
 )
 
-// send dispatches whatever is in the composer.
+// send dispatches whatever is in the composer, staged attachments included.
 func (m *Model) send() tea.Cmd {
 	text := strings.TrimSpace(m.input.Value())
-	if text == "" {
+	if text == "" && len(m.attachments) == 0 {
 		return nil
 	}
 
@@ -33,7 +33,7 @@ func (m *Model) send() tea.Cmd {
 	firstMessage := m.sess.Empty()
 
 	m.input.Reset()
-	m.sess.Append(client.Message{Role: client.RoleUser, Content: text})
+	m.sess.Append(client.Message{Role: client.RoleUser, Content: m.composeOutgoing(text)})
 	m.cacheLast()
 
 	stream := m.startStream()
@@ -42,6 +42,27 @@ func (m *Model) send() tea.Cmd {
 		return tea.Batch(stream, slideTick())
 	}
 	return stream
+}
+
+// composeOutgoing folds the staged attachments into the message: pasted text
+// travels in full after whatever was typed. The wire format is text-only, so
+// an image goes as a note naming it rather than a silent drop — the user
+// watched it preview locally and deserves to know the model never saw it.
+func (m *Model) composeOutgoing(text string) string {
+	parts := make([]string, 0, len(m.attachments)+1)
+	if text != "" {
+		parts = append(parts, text)
+	}
+	for _, a := range m.attachments {
+		if a.kind == attachImage {
+			parts = append(parts, "[attached image: "+a.name+" — not sent, text-only connection]")
+		} else {
+			parts = append(parts, a.content)
+		}
+	}
+	m.attachments = nil
+	m.attachFocus = -1
+	return strings.Join(parts, "\n\n")
 }
 
 // newSession archives the current chat and starts a fresh one, carrying over

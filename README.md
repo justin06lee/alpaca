@@ -229,6 +229,7 @@ network.
 | `ctrl+s` | Browse saved chats — a drawer beside the chat |
 | `ctrl+r` | Regenerate the last reply |
 | `ctrl+y` | Copy the last reply |
+| `ctrl+g` | Copy the last code block — or click `⧉ copy` on any block |
 | mouse wheel, `pgup` / `pgdn`, `ctrl+u` / `ctrl+d` | Scroll |
 | `?` | All keys |
 | `ctrl+c` | Quit |
@@ -236,6 +237,23 @@ network.
 Slash commands do the same things, plus `/search <query>` when the server has
 search enabled: `/model`, `/new`, `/sessions`, `/system`, `/retry`, `/copy`,
 `/clear`, `/search`, `/stats`, `/help`, `/quit`.
+
+The composer grows with what you type, up to about a third of the screen, and
+scrolls inside its frame past that — the cursor stays in view either way.
+
+Pasting more than a few lines stages the paste as a chip above the input —
+`[#1 · 42 lines pasted]` — instead of flooding the composer; the full text
+still travels with the message when you send. Dropping an image file onto the
+terminal stages it the same way. Press `↑` from the top of the input to focus
+the chips, `←`/`→` to move between them, `enter` to open one in a popup —
+pasted text scrollable in full, images downsampled to coloured terminal cells
+— and `backspace` to remove one. Image previews are local only: the chat
+connection is text-only, so the model is told an image was attached but never
+receives it.
+
+Replies render their fenced code in framed blocks: a header rule names the
+language and carries a `⧉ copy` control you can click with the mouse;
+`ctrl+g` copies the newest block without reaching for it.
 
 ### shift+enter
 

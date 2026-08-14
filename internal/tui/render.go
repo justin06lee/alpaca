@@ -13,12 +13,12 @@ import (
 )
 
 // Palette, taken from the opening's pixel art so the interface and the splash
-// look like the same program. Warm terracotta for the animal and its replies, a
-// cool slate for the human, so the two sides of a conversation separate at a
-// glance without either shouting.
+// look like the same program. Warm terracotta for the animal and its replies,
+// muted hay for the human — the same pasture, two different plants — so the
+// two sides of a conversation separate at a glance without either shouting.
 var (
 	colorAccent = lipgloss.Color("#E0A177") // terracotta: alpaca itself
-	colorUser   = lipgloss.Color("#8FB3C7") // slate: the human
+	colorUser   = lipgloss.Color("#B3986B") // hay: the human
 	colorModel  = lipgloss.Color("#D9A283") // warm wool: the model
 	colorText   = lipgloss.Color("#D8D2CB")
 	colorMuted  = lipgloss.Color("#6F6459")
@@ -82,6 +82,14 @@ var (
 			Padding(0, 1)
 
 	styleComposerActive = styleComposer.BorderForeground(colorAccent)
+
+	// Attachment chips in the composer: quiet at rest, unmistakable when the
+	// arrow keys land on one.
+	styleChip        = lipgloss.NewStyle().Foreground(colorAccent)
+	styleChipFocused = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("#2A211B")).
+				Background(colorAccent).
+				Bold(true)
 
 	// Barely there on either background, which is the point.
 	styleCredit = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{
@@ -165,17 +173,18 @@ func (m *Model) renderMessage(msg client.Message) string {
 		// Width covers content plus padding, and lipgloss wraps content at
 		// Width minus padding — sized to the text alone, a message exactly as
 		// wide as its bubble wrapped its own last word onto a second line.
-		bubble := styleUserBubble.Width(fitWidth(msg.Content, m.bubbleMax()) + 2).Render(msg.Content)
+		content := collapseLongText(msg.Content)
+		bubble := styleUserBubble.Width(fitWidth(content, m.bubbleMax()) + 2).Render(content)
 		return lipgloss.NewStyle().Width(m.contentWidth()).
 			Align(lipgloss.Right).Render(bubble)
 
 	case client.RoleAssistant:
-		return m.assistantBlock(m.renderMarkdown(msg.Content))
+		return m.assistantBlock(m.renderRichText(msg.Content))
 
 	case client.RoleSystem:
 		// Context injected mid-conversation (search results, for instance) is
 		// worth reading, so it is rendered in full rather than truncated.
-		return styleSearchNote.Render("◈ context") + "\n" + m.renderMarkdown(msg.Content)
+		return styleSearchNote.Render("◈ context") + "\n" + m.renderRichText(msg.Content)
 
 	default:
 		return styleMuted.Render(msg.Role + ": " + msg.Content)
@@ -183,9 +192,26 @@ func (m *Model) renderMessage(msg client.Message) string {
 }
 
 // assistantBlock renders the model's side: left-aligned under a small rail, so
-// code blocks and tables get the full width they need.
+// code blocks and tables get the full width they need. The blank line under
+// the label keeps the model's name from crowding its own first sentence.
 func (m *Model) assistantBlock(body string) string {
-	return styleModelLabel.Render("▌ "+m.sess.Model) + "\n" + body
+	return styleModelLabel.Render("▌ "+m.sess.Model) + "\n\n" + body
+}
+
+// bubbleMaxLines is how much of a message the bubble shows before folding.
+// A staged paste travels inside the sent message, and fifty lines of it would
+// bury the conversation it was pasted into.
+const bubbleMaxLines = 8
+
+// collapseLongText shows the head of a long message and counts the rest.
+func collapseLongText(s string) string {
+	lines := strings.Split(s, "\n")
+	if len(lines) <= bubbleMaxLines {
+		return s
+	}
+	head := strings.Join(lines[:bubbleMaxLines-1], "\n")
+	folded := len(lines) - (bubbleMaxLines - 1)
+	return head + "\n" + styleFaint.Render(fmt.Sprintf("… +%d more lines", folded))
 }
 
 // fitWidth is how wide a bubble needs to be: the longest line, capped. Short
@@ -239,7 +265,10 @@ func (m *Model) conversation() string {
 		// what the model is doing, and a second indicator here would just be
 		// the same news twice.
 		if m.streamBuf != "" {
-			b.WriteString(m.renderMarkdown(m.streamBuf))
+			// The same breathing room the finished message gets from
+			// assistantBlock, so nothing shifts when the reply commits.
+			b.WriteString("\n")
+			b.WriteString(m.renderRichText(m.streamBuf))
 		}
 		b.WriteString("\n\n")
 	}

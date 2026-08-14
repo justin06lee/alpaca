@@ -3,6 +3,7 @@ package tui
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/charmbracelet/bubbles/spinner"
@@ -18,7 +19,7 @@ import (
 // Layout constants, in terminal rows.
 const (
 	headerHeight = 2 // title line plus a blank
-	inputHeight  = 3 // textarea rows
+	inputHeight  = composerMinRows
 	chromeHeight = headerHeight + inputHeight + 2
 )
 
@@ -62,6 +63,20 @@ type Model struct {
 	mode     pickerKind
 	pick     picker
 	showHelp bool
+
+	// attachments hold oversized pastes and dropped-in images out of the
+	// composer text until send; each shows as a chip above the input.
+	attachments []attachment
+	// attachFocus is which chip the arrow keys are on; -1 while typing.
+	attachFocus int
+	// viewAttach is the attachment open in the full-content popup; -1 closed.
+	viewAttach int
+	// attachScroll is the popup's scroll offset, in lines.
+	attachScroll int
+
+	// paneLines mirrors the viewport's content so a mouse click can be mapped
+	// back to the transcript line under it.
+	paneLines []string
 
 	// splashScan is how many rows of the opening image have been painted.
 	splashScan int
@@ -113,6 +128,10 @@ func New(connect Connector, store *session.Store, profiles *config.Profiles, pro
 	// Enter is intercepted as "send", so the textarea must not also insert a
 	// newline for it.
 	input.KeyMap.InsertNewline.SetEnabled(false)
+	// The textarea's own ctrl+v reads the clipboard behind the interface's
+	// back; disabling it keeps bracketed paste the single path in, which is
+	// where oversized pastes get staged as attachments.
+	input.KeyMap.Paste.SetEnabled(false)
 
 	spin := spinner.New()
 	spin.Spinner = spinner.Dot
@@ -130,6 +149,8 @@ func New(connect Connector, store *session.Store, profiles *config.Profiles, pro
 		sess:        sess,
 		input:       input,
 		spinner:     spin,
+		attachFocus: -1,
+		viewAttach:  -1,
 	}
 }
 
@@ -298,7 +319,9 @@ func (m *Model) refreshViewport(follow bool) {
 	// Only auto-scroll if the user was already at the bottom; yanking the view
 	// down while they are reading scrollback is infuriating.
 	atBottom := m.viewport.AtBottom()
-	m.viewport.SetContent(m.conversation())
+	content := m.conversation()
+	m.paneLines = strings.Split(content, "\n")
+	m.viewport.SetContent(content)
 	if follow && atBottom {
 		m.viewport.GotoBottom()
 	}
@@ -348,6 +371,8 @@ func (m *Model) View() string {
 		return m.modelPopover(base)
 	case m.mode == pickerSession:
 		return m.sessionSidebar(base)
+	case m.viewAttach >= 0:
+		return m.attachmentPopover(base)
 	}
 	return base
 }
