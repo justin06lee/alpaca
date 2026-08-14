@@ -8,9 +8,14 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// composerRows is the height of the framed input: three rows of text plus the
-// border above and below.
-const composerRows = 5
+// composerMinRows is how many text rows the input shows at rest. Typing more
+// grows the box one row at a time up to composerMaxRows, and past that the
+// textarea scrolls internally, cursor always in view.
+const composerMinRows = 3
+
+// composerRows is the height of the framed input at rest: the minimum text
+// rows plus the border above and below.
+const composerRows = composerMinRows + 2
 
 // slideDuration is how long the composer takes to travel from the middle of the
 // screen down to its dock. A plain glide reads best kept brisk: long enough to
@@ -123,6 +128,43 @@ func (m *Model) composerWidth(slide float64) int {
 	return clampInt(lerpInt(narrow, full, slide), narrow, full)
 }
 
+// composerMaxRows caps the input's growth at roughly a third of the screen,
+// so a long message can never squeeze the transcript out of view.
+func (m *Model) composerMaxRows() int {
+	return clampInt(m.height/3, composerMinRows, 10)
+}
+
+// inputRowsNeeded estimates how many display rows the composer text occupies
+// at the textarea's current width, soft-wrapped lines included. The estimate
+// leans high on exact-width lines, which only means the box grows a row
+// early — never that the cursor ends up outside it.
+func (m *Model) inputRowsNeeded() int {
+	width := maxInt(1, m.input.Width())
+	rows := 0
+	for _, line := range strings.Split(m.input.Value(), "\n") {
+		rows += 1 + lipgloss.Width(line)/width
+	}
+	return rows
+}
+
+// syncInput resizes the input to fit its content and then nudges the textarea
+// with an empty update, which runs its internal view repositioning. The nudge
+// is the fix for a real bug: InsertString and SetHeight bypass repositioning,
+// so a ctrl+j newline used to push the cursor below the visible rows and keep
+// typing into a part of the box that was not on screen.
+func (m *Model) syncInput() {
+	rows := clampInt(m.inputRowsNeeded(), composerMinRows, m.composerMaxRows())
+	if m.input.Height() != rows {
+		m.input.SetHeight(rows)
+	}
+	// The textarea's scroll position is clamped against its internal
+	// viewport's content, and that content is only refreshed inside View —
+	// so a throwaway view must come first or the reposition has nothing to
+	// scroll through and quietly stays put.
+	_ = m.input.View()
+	m.input, _ = m.input.Update(nil)
+}
+
 // renderComposer frames the input, or a stop hint while the model is talking.
 func (m *Model) renderComposer(width int) string {
 	frame := styleComposer
@@ -148,8 +190,15 @@ func (m *Model) renderComposer(width int) string {
 			styleFaint.Render("esc to stop") + "\n")
 	}
 
+	// Width first, then height: the row count depends on where lines wrap.
 	m.input.SetWidth(inner)
-	return frame.Width(frameWidth).Render(m.input.View())
+	m.syncInput()
+
+	body := m.input.View()
+	if chips := m.attachmentChips(inner); chips != "" {
+		body = chips + "\n" + body
+	}
+	return frame.Width(frameWidth).Render(body)
 }
 
 // thinkingLabel is the rotating status shown before the first token lands.
@@ -259,26 +308,31 @@ func (m *Model) chatView() string {
 	centred := m.welcomeComposerTop()
 	top := clampInt(lerpInt(centred, docked, slide), 2, m.height-len(composer))
 
-	// The transcript fills whatever room is left above.
+	// The transcript fills whatever room is left above, minus one blank row so
+	// the composer never sits flush against the last line of the conversation.
 	above := maxInt(0, top-2)
-	if m.viewport.Height != above {
-		m.viewport.Height = above
+	paneRows := maxInt(0, above-1)
+	if m.viewport.Height != paneRows {
+		m.viewport.Height = paneRows
 		m.viewport.Width = m.width
 		m.refreshViewport(true)
 	}
 
 	out := make([]string, 0, m.height)
 	out = append(out, m.header(), "")
-	if above > 0 {
+	if paneRows > 0 {
 		// The viewport returns only the lines it has, not a full pane, so the
 		// gap has to be filled here. Without this the composer lands directly
 		// under the last line of the transcript instead of at its dock, and the
 		// slide has nowhere to travel.
 		pane := strings.Split(m.viewport.View(), "\n")
-		for len(pane) < above {
+		for len(pane) < paneRows {
 			pane = append(pane, "")
 		}
-		out = append(out, pane[:above]...)
+		out = append(out, pane[:paneRows]...)
+	}
+	if above > 0 {
+		out = append(out, "") // the breathing row above the composer
 	}
 	out = append(out, composer...)
 	for len(out) < m.height-1 {

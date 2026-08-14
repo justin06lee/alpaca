@@ -40,6 +40,25 @@ func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m *Model) handleChatKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	// The attachment popup is modal: its keys must not fall through and type
+	// into the composer underneath it.
+	if m.viewAttach >= 0 {
+		return m, m.handleAttachViewKey(msg)
+	}
+	if m.attachFocus >= 0 {
+		return m.handleChipKey(msg)
+	}
+
+	// A bracketed paste arrives as one big KeyRunes. It is always handled
+	// here rather than fed to the textarea: oversized ones become chips, and
+	// even small ones need their carriage returns normalised.
+	if msg.Paste && msg.Type == tea.KeyRunes {
+		if m.streaming {
+			return m, nil
+		}
+		return m, m.handlePaste(string(msg.Runes))
+	}
+
 	switch msg.Type {
 
 	case tea.KeyEsc:
@@ -51,7 +70,20 @@ func (m *Model) handleChatKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.input.Reset()
 			return m, nil
 		}
+		if len(m.attachments) > 0 {
+			m.attachments = nil
+			m.attachFocus = -1
+			return m, m.setStatus("attachments discarded", false)
+		}
 		return m, nil
+
+	case tea.KeyUp:
+		// Up from the top of the text climbs onto the attachment chips.
+		if len(m.attachments) > 0 && m.input.Line() == 0 && m.input.LineInfo().RowOffset == 0 {
+			m.attachFocus = 0
+			return m, nil
+		}
+		// Otherwise the textarea below moves its own cursor.
 
 	case tea.KeyEnter:
 		if m.streaming {
@@ -80,6 +112,9 @@ func (m *Model) handleChatKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyCtrlY:
 		return m, m.copyLastReply()
+
+	case tea.KeyCtrlG:
+		return m, m.copyLastCodeBlock()
 
 	case tea.KeyPgUp:
 		m.viewport.ViewUp()
@@ -161,26 +196,40 @@ func (m *Model) handlePickerKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 // to track.
 const wheelStep = 3
 
-// handleMouse gives the wheel its obvious meanings: scrolling the transcript,
-// and moving the cursor in whichever picker is open. Everything else — clicks,
-// drags — is deliberately ignored.
+// handleMouse gives the mouse its obvious meanings: the wheel scrolls the
+// transcript, the open picker, or the attachment popup; a left click is
+// checked against the copy control on code block headers. Everything else —
+// drags, other buttons — is deliberately ignored.
 func (m *Model) handleMouse(msg tea.MouseMsg) tea.Cmd {
 	if !m.splashDone || m.showHelp {
 		return nil
 	}
 	switch msg.Button {
 	case tea.MouseButtonWheelUp:
+		if m.viewAttach >= 0 {
+			m.attachScroll = maxInt(0, m.attachScroll-wheelStep)
+			return nil
+		}
 		if m.mode != pickerNone {
 			m.pick.move(-1)
 			return nil
 		}
 		m.viewport.LineUp(wheelStep)
 	case tea.MouseButtonWheelDown:
+		if m.viewAttach >= 0 {
+			m.attachScroll += wheelStep // clamped against the content when rendered
+			return nil
+		}
 		if m.mode != pickerNone {
 			m.pick.move(1)
 			return nil
 		}
 		m.viewport.LineDown(wheelStep)
+	case tea.MouseButtonLeft:
+		if msg.Action != tea.MouseActionPress || m.mode != pickerNone || m.viewAttach >= 0 {
+			return nil
+		}
+		return m.clickTranscript(msg.X, msg.Y)
 	}
 	return nil
 }
