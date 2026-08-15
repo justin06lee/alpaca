@@ -260,6 +260,13 @@ Long sent messages fold in their bubble (`… +26 more lines`); click any of
 your bubbles to read the whole message in a scrollable popup, `y` to copy it,
 `esc` to close.
 
+Drag with the mouse to select text — in the chat, the composer, even inside a
+popup. The highlight follows the drag, and releasing the button copies the
+selection to the clipboard, exactly as it appears on screen. A keypress,
+scroll, or click dismisses the highlight. (Your terminal's own selection
+still works too, usually while holding a modifier such as `shift` or `fn` /
+`alt`.)
+
 ### shift+enter
 
 Terminals transmit `shift+enter` as a plain `enter` — the application never

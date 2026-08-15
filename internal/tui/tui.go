@@ -90,6 +90,11 @@ type Model struct {
 	copiedBlock int
 	copiedSeq   int
 
+	// sel is the mouse-drag text selection, and lastFrame is the frame it was
+	// drawn over — the copy on release reads from exactly what was on screen.
+	sel       selection
+	lastFrame string
+
 	// splashScan is how many rows of the opening image have been painted.
 	splashScan int
 	splashDone bool
@@ -306,6 +311,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // resize recomputes the layout and re-renders at the new width.
 func (m *Model) resize(width, height int) tea.Cmd {
 	m.width, m.height = width, height
+	// The old screen's cell coordinates mean nothing on the new one.
+	m.clearSelection()
 
 	paneHeight := height - chromeHeight
 	if paneHeight < 3 {
@@ -375,7 +382,15 @@ func (m *Model) handleModels(msg modelsMsg) tea.Cmd {
 	return nil
 }
 
+// View renders the frame, remembers it for the selection machinery, and
+// paints any active highlight on top.
 func (m *Model) View() string {
+	frame := m.viewFrame()
+	m.lastFrame = frame
+	return m.applySelection(frame)
+}
+
+func (m *Model) viewFrame() string {
 	if m.quitting {
 		return ""
 	}
