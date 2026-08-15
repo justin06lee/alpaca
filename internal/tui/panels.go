@@ -107,6 +107,7 @@ func helpContent() string {
 		{"big paste", "staged as a chip — ↑ focuses it, enter views it"},
 		{"image path", "drop a file on the terminal to attach a preview"},
 		{"click a bubble", "read that sent message in full"},
+		{"drag to select", "highlight any text on screen; copies on release"},
 		{"", ""},
 		{"wheel · pgup/pgdn", "scroll the transcript"},
 		{"ctrl+u/ctrl+d", "scroll half a page"},

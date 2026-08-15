@@ -83,9 +83,11 @@ alpaca chat — open the chat interface
 	}
 
 	ui := tui.New(connect, store, profiles, profile.Name, sess)
-	// Mouse cell motion is what makes the wheel scroll the transcript. The
-	// trade-off is that the terminal's own click-drag text selection is
-	// captured too; most terminals still allow it while a modifier is held.
+	// Mouse cell motion is what makes the wheel scroll the transcript and
+	// drag-selection possible. The terminal's own click-drag selection is
+	// captured as a consequence, so the interface provides its own: drag to
+	// highlight, release to copy. Most terminals still offer theirs while a
+	// modifier is held.
 	if _, err := tea.NewProgram(ui, tea.WithAltScreen(), tea.WithMouseCellMotion()).Run(); err != nil {
 		return fmt.Errorf("chat interface: %w", err)
 	}

@@ -10,6 +10,10 @@ func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, m.quit()
 	}
 
+	// Typing dismisses a finished highlight, the way it does anywhere text
+	// can be selected; the key then does its normal work.
+	m.clearSelection()
+
 	// Nobody should have to sit through an animation, but the skip cannot be
 	// hair-triggered either. A terminal answers the queries a TUI makes on
 	// startup — the background-colour probe replies with an OSC 11 sequence,
@@ -196,41 +200,65 @@ func (m *Model) handlePickerKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 // to track.
 const wheelStep = 3
 
-// handleMouse gives the mouse its obvious meanings: the wheel scrolls the
-// transcript, the open picker, or the attachment popup; a left click is
-// checked against the copy control on code block headers. Everything else —
-// drags, other buttons — is deliberately ignored.
+// handleMouse gives the mouse its obvious meanings. The wheel scrolls the
+// transcript, the open picker, or the attachment popup. The left button
+// carries two gestures told apart by travel: press-move-release paints a
+// selection and copies it, while press-release in place is a click, checked
+// against the copy controls and the user's bubbles. Acting on release rather
+// than press is what lets one button serve both.
 func (m *Model) handleMouse(msg tea.MouseMsg) tea.Cmd {
 	if !m.splashDone || m.showHelp {
 		return nil
 	}
 	popupOpen := m.viewAttach >= 0 || m.viewMsg >= 0
+
 	switch msg.Button {
-	case tea.MouseButtonWheelUp:
-		if popupOpen {
+	case tea.MouseButtonWheelUp, tea.MouseButtonWheelDown:
+		// Scrolling moves text under the highlight's screen cells, so any
+		// selection stops meaning what it shows.
+		m.clearSelection()
+		up := msg.Button == tea.MouseButtonWheelUp
+		switch {
+		case popupOpen && up:
 			m.attachScroll = maxInt(0, m.attachScroll-wheelStep)
-			return nil
-		}
-		if m.mode != pickerNone {
-			m.pick.move(-1)
-			return nil
-		}
-		m.viewport.LineUp(wheelStep)
-	case tea.MouseButtonWheelDown:
-		if popupOpen {
+		case popupOpen:
 			m.attachScroll += wheelStep // clamped against the content when rendered
-			return nil
-		}
-		if m.mode != pickerNone {
+		case m.mode != pickerNone && up:
+			m.pick.move(-1)
+		case m.mode != pickerNone:
 			m.pick.move(1)
-			return nil
+		case up:
+			m.viewport.LineUp(wheelStep)
+		default:
+			m.viewport.LineDown(wheelStep)
 		}
-		m.viewport.LineDown(wheelStep)
+		return nil
+
 	case tea.MouseButtonLeft:
-		if msg.Action != tea.MouseActionPress || m.mode != pickerNone || popupOpen {
+		if msg.Action == tea.MouseActionPress {
+			m.sel = selection{dragging: true, ax: msg.X, ay: msg.Y, ex: msg.X, ey: msg.Y}
 			return nil
 		}
-		return m.clickTranscript(msg.X, msg.Y)
+	}
+
+	if !m.sel.dragging {
+		return nil
+	}
+	switch msg.Action {
+	case tea.MouseActionMotion:
+		m.sel.ex, m.sel.ey = msg.X, msg.Y
+		if msg.X != m.sel.ax || msg.Y != m.sel.ay {
+			m.sel.active = true
+		}
+	case tea.MouseActionRelease:
+		m.sel.dragging = false
+		if m.sel.active {
+			return m.copySelection()
+		}
+		m.clearSelection()
+		if m.mode == pickerNone && !popupOpen {
+			return m.clickTranscript(msg.X, msg.Y)
+		}
 	}
 	return nil
 }

@@ -83,6 +83,13 @@ var (
 
 	styleComposerActive = styleComposer.BorderForeground(colorAccent)
 
+	// Mouse-drag selection. Cool slate on a warm screen: the one thing that
+	// is transient interface state rather than conversation, so it gets the
+	// one colour nothing else uses.
+	styleSelection = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#E8EEF5")).
+			Background(lipgloss.Color("#3D4E63"))
+
 	// Attachment chips in the composer: quiet at rest, unmistakable when the
 	// arrow keys land on one.
 	styleChip        = lipgloss.NewStyle().Foreground(colorAccent)
