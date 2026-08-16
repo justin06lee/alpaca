@@ -18,6 +18,10 @@ const testKey = "alp_testkeytestkeytestkeytestkey00"
 // newGateway stands up the full gateway (middleware included) in front of a
 // stub ollama daemon, and returns its base URL.
 func newGateway(t *testing.T, daemon http.HandlerFunc) string {
+	return newGatewayWithDefault(t, daemon, "")
+}
+
+func newGatewayWithDefault(t *testing.T, daemon http.HandlerFunc, defaultModel string) string {
 	t.Helper()
 
 	upstream := httptest.NewServer(daemon)
@@ -29,11 +33,12 @@ func newGateway(t *testing.T, daemon http.HandlerFunc) string {
 	}
 
 	srv := New(Options{
-		Ollama:  client,
-		APIKey:  testKey,
-		ID:      "server-id",
-		Name:    "test-box",
-		Version: "test",
+		Ollama:       client,
+		APIKey:       testKey,
+		ID:           "server-id",
+		Name:         "test-box",
+		DefaultModel: defaultModel,
+		Version:      "test",
 		// Keep test output readable; errors are asserted, not read.
 		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
 	})
@@ -540,6 +545,58 @@ func TestListModelsMapsToOpenAIShape(t *testing.T) {
 	// The extra metadata is what the TUI's model picker displays.
 	if out.Data[0].ParameterSize != "3.2B" {
 		t.Errorf("parameter_size = %q, want 3.2B", out.Data[0].ParameterSize)
+	}
+}
+
+// The configured default model leads the list — it is what a fresh client
+// session adopts — while the daemon's order holds for everything else. A
+// default the daemon does not have changes nothing.
+func TestListModelsPutsTheDefaultFirst(t *testing.T) {
+	daemon := func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `{"models":[
+			{"name":"nomic-embed-text:latest"},
+			{"name":"llama3.2:latest"},
+			{"name":"gpt-oss:20b"}]}`)
+	}
+
+	order := func(t *testing.T, base string) []string {
+		t.Helper()
+		resp := do(t, http.MethodGet, base+"/v1/models", testKey, "")
+		var out struct {
+			Data []struct {
+				ID string `json:"id"`
+			} `json:"data"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		ids := make([]string, 0, len(out.Data))
+		for _, d := range out.Data {
+			ids = append(ids, d.ID)
+		}
+		return ids
+	}
+
+	cases := map[string]struct {
+		def   string
+		first string
+	}{
+		"exact":   {"gpt-oss:20b", "gpt-oss:20b"},
+		"prefix":  {"gpt-oss", "gpt-oss:20b"},
+		"absent":  {"mistral:latest", "nomic-embed-text:latest"},
+		"unset":   {"", "nomic-embed-text:latest"},
+		"already": {"nomic-embed-text:latest", "nomic-embed-text:latest"},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			got := order(t, newGatewayWithDefault(t, daemon, tc.def))
+			if len(got) != 3 {
+				t.Fatalf("models = %v, want all 3", got)
+			}
+			if got[0] != tc.first {
+				t.Errorf("first model = %q, want %q (full order %v)", got[0], tc.first, got)
+			}
+		})
 	}
 }
 

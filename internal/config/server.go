@@ -16,6 +16,12 @@ type Server struct {
 	Name string `json:"name"`
 	// APIKey is the bearer token every request must present.
 	APIKey string `json:"api_key"`
+	// Model, when set, is advertised first in /v1/models — it is what a
+	// fresh client session lands on. Without it the order is whatever the
+	// daemon reports, which on a box whose newest pull is an embedding model
+	// would hand new chats a model that cannot chat. Set via
+	// `alpaca serve --model`.
+	Model string `json:"model,omitempty"`
 }
 
 // LoadServer reads the server identity, creating and persisting a fresh one on

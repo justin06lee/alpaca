@@ -132,6 +132,15 @@ Anything outside your LAN or tailnet is always TLS.
 `alpaca serve` binds all interfaces by default so other machines can reach it.
 Use `--bind 127.0.0.1` if you only want local access.
 
+## Default model
+
+`alpaca serve --model gpt-oss:20b` names the model new chats should start on.
+It is listed first in `/v1/models`, which is what alpaca's TUI (and most
+OpenAI clients) adopt for a fresh session — without it, the order is whatever
+ollama reports, and a freshly pulled embedding model would end up the default.
+The choice persists in `server.json`, so the flag only needs passing once; a
+prefix works (`--model gpt-oss`), and `--model ""` clears it.
+
 ## Web search
 
 The model can look things up. The gateway runs the searches itself, so every
