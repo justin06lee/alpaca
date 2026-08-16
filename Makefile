@@ -35,9 +35,12 @@ PLATFORMS := \
 	darwin/arm64 \
 	windows/amd64
 
-.PHONY: all build install uninstall where test test-live lint fmt cross clean run
+.PHONY: all build install update uninstall where test test-live lint fmt cross clean run
 
-all: build
+# The golden path: a bare `make` leaves `alpaca` runnable by name from any
+# directory. There is no daemon to launch on this machine — serving happens
+# wherever `alpaca serve` runs — so build-and-install is the whole journey.
+all: install
 
 build:
 	go build -ldflags "$(LDFLAGS)" -o $(BINARY) $(PKG)
@@ -69,6 +72,16 @@ install: build
 	else \
 		echo "run it from anywhere:  $(BINARY) serve"; \
 	fi
+
+# Full refresh of a live install: stop anything running the old binary,
+# remove it, then build and install fresh. Chat sessions are interactive and
+# cannot be resurrected, so unlike a daemon there is nothing to restart —
+# rerun `alpaca chat` (or `alpaca serve`) afterwards.
+update:
+	-pkill -x $(BINARY) 2>/dev/null || true
+	@if [ -w "$(BINDIR)" ]; then rm -f "$(BINDIR)/$(BINARY)"; \
+	else sudo rm -f "$(BINDIR)/$(BINARY)"; fi
+	@$(MAKE) --no-print-directory install
 
 uninstall:
 	@if [ -w "$(BINDIR)" ]; then rm -f "$(BINDIR)/$(BINARY)"; \

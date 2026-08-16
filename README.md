@@ -1,15 +1,15 @@
 <div align="center">
 
-<img src="assets/alpaca.svg" alt="" width="196">
+<img src="assets/alpaca.svg" alt="alpaca" width="330" />
 
-<h1>alpaca</h1>
+# alpaca
 
-<p>
-Self-host a model with Ollama and reach it from every machine you own.<br>
-One binary serves an OpenAI-compatible API — the client finds it on its own.
-</p>
+**Self-host a model with Ollama and reach it from every machine you own.**<br>
+*One binary serves an OpenAI-compatible API — the client finds it on its own.*
 
 </div>
+
+---
 
 ## Setup
 
@@ -336,8 +336,10 @@ Every command takes `--help`, and multiple servers are supported via `--profile`
 ## Building and installing
 
 ```sh
-make build      # ./alpaca in the repo
-make install    # put it on your PATH, so `alpaca` works from anywhere
+make            # the whole path: build, then install onto your PATH
+make build      # ./alpaca in the repo, nothing installed
+make install    # what `make` runs: install the binary just built
+make update     # stop a running alpaca, replace the installed binary fresh
 ```
 
 `make install` builds first and installs that binary, so what lands on your PATH
