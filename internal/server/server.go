@@ -25,6 +25,10 @@ type Options struct {
 	// ID and Name identify this server to clients during discovery.
 	ID   string
 	Name string
+	// DefaultModel, when set, is listed first in /v1/models. Clients that
+	// adopt the first model for a fresh chat — alpaca's own TUI among them —
+	// therefore start on it.
+	DefaultModel string
 	// Version is the alpaca build version, reported in /api/info.
 	Version string
 	Logger  *slog.Logger

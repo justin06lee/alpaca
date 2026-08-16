@@ -42,6 +42,8 @@ alpaca serve — expose the local ollama daemon as a networked API
   --bind ADDR       address to bind (default: all interfaces, IPv4 and IPv6)
   --ollama URL      ollama daemon address (default http://127.0.0.1:11434)
   --name NAME       friendly name shown to clients (default: this hostname)
+  --model NAME      default model: listed first, so new chats start on it
+                    (persisted; pass --model "" to clear)
   --public HOST:PORT  advertise this internet-reachable address, for when you
                     have forwarded a port on the router yourself
   --search KIND     enable web search for the model ("searxng")
@@ -66,6 +68,9 @@ alpaca serve — expose the local ollama daemon as a networked API
 	bind := fs.String("bind", "", "")
 	ollamaURL := fs.String("ollama", "", "")
 	name := fs.String("name", "", "")
+	// The empty default means "leave the persisted choice alone", so clearing
+	// needs an explicit --model "" — detected via fs.Visit below.
+	model := fs.String("model", "", "")
 	publicAddr := fs.String("public", "", "")
 	searchKind := fs.String("search", "", "")
 	searchURL := fs.String("search-url", "", "")
@@ -96,6 +101,20 @@ alpaca serve — expose the local ollama daemon as a networked API
 	}
 	if *name != "" && *name != identity.Name {
 		identity.Name = *name
+		if err := identity.Save(); err != nil {
+			return err
+		}
+	}
+	// The default model persists like the name does, so the flag only needs
+	// passing once. An explicitly empty --model "" clears it.
+	modelSet := false
+	fs.Visit(func(f *flag.Flag) {
+		if f.Name == "model" {
+			modelSet = true
+		}
+	})
+	if modelSet && *model != identity.Model {
+		identity.Model = *model
 		if err := identity.Save(); err != nil {
 			return err
 		}
@@ -191,6 +210,7 @@ alpaca serve — expose the local ollama daemon as a networked API
 		APIKey:        identity.APIKey,
 		ID:            identity.ID,
 		Name:          identity.Name,
+		DefaultModel:  identity.Model,
 		Version:       buildVersion(),
 		Logger:        log,
 		Search:        searchProvider,
