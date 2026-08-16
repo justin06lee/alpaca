@@ -392,6 +392,14 @@ alpaca processes updating profiles at once cannot lose each other's changes.
 running. If the server moved networks, `alpaca discover` will find it, or re-link
 with a fresh connect string.
 
+**Every route fails but ssh to the server works.** Something between you and
+the server filters by port: a tailnet ACL that only opens specific ports, or a
+router that restricts client-to-client traffic. Either open tcp:8080 to the
+server (one line in the Tailscale admin console's ACL), or ride the port that
+already works — a `ssh -N -L 18080:127.0.0.1:8080 server` tunnel, with
+`127.0.0.1:18080` added to the profile's `lan` hints in `profiles.json`,
+behaves exactly like a local route.
+
 **The first connection on macOS fails, then works.** macOS asks for Local Network
 permission the first time a binary talks to a LAN address, and blocks that
 attempt while asking. Approve it and retry; this happens once per binary.
