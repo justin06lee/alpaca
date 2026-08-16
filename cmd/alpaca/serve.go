@@ -307,6 +307,9 @@ alpaca serve — expose the local ollama daemon as a networked API
 		return err
 	}
 
+	// The banner leads with the same model /v1/models will list first, so
+	// what it announces is what a fresh client actually gets.
+	server.PromoteDefault(models, identity.Model)
 	printBanner(bannerInfo{
 		identity:      identity,
 		fresh:         fresh,

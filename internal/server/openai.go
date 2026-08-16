@@ -515,7 +515,7 @@ func (s *Server) handleListModels(w http.ResponseWriter, r *http.Request) {
 		s.writeUpstreamError(w, err)
 		return
 	}
-	promoteDefault(models, s.opts.DefaultModel)
+	PromoteDefault(models, s.opts.DefaultModel)
 
 	type modelObject struct {
 		ID      string `json:"id"`
@@ -545,11 +545,12 @@ func (s *Server) handleListModels(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"object": "list", "data": data})
 }
 
-// promoteDefault moves the configured default model to the front of the
+// PromoteDefault moves the configured default model to the front of the
 // list, leaving the daemon's order otherwise intact. Exact name first; then a
 // prefix match, so `--model gpt-oss` finds gpt-oss:20b. A default the daemon
 // no longer has changes nothing — a stale config must not invent a model.
-func promoteDefault(models []ollama.Model, def string) {
+// Exported because the serve banner leads with the same model this promotes.
+func PromoteDefault(models []ollama.Model, def string) {
 	if def == "" || len(models) == 0 {
 		return
 	}
