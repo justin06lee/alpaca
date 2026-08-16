@@ -1,122 +1,85 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 270 262" width="270" height="262" role="img" aria-label="an alpaca">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 420" width="900" height="420" role="img" aria-label="alpaca — the terminal sprite as a manga action panel">
   <title>alpaca</title>
+  <!-- Manga panel: flat black ink on a white page. The animal is the TUI's
+       own splash sprite, stamped instead of drawn — the terminal is the
+       character. Speed lines arrive from the left (every other machine),
+       broadcast arcs leave the head (the one that serves). -->
 
   <defs>
-    <linearGradient id="wool" gradientUnits="userSpaceOnUse" x1="0" y1="10" x2="0" y2="248">
-      <stop offset="0%" stop-color="#F9EFE1"/>
-      <stop offset="100%" stop-color="#E2CDAF"/>
-    </linearGradient>
-
-    <!-- The whole animal is one shape list, declared once and painted twice
-         (see below). Building the fleece from overlapping circles gives a
-         scalloped, woolly silhouette far more reliably than hand-authoring
-         the equivalent path arcs. -->
-    <g id="silhouette">
-      <rect x="122" y="176" width="17" height="58" rx="8.5"/>
-      <rect x="148" y="180" width="17" height="54" rx="8.5"/>
-      <rect x="178" y="180" width="17" height="54" rx="8.5"/>
-      <rect x="204" y="176" width="17" height="58" rx="8.5"/>
-
-      <ellipse cx="162" cy="152" rx="52" ry="40"/>
-      <circle cx="113" cy="138" r="17"/>
-      <circle cx="132" cy="119" r="18"/>
-      <circle cx="162" cy="112" r="19"/>
-      <circle cx="192" cy="119" r="18"/>
-      <circle cx="211" cy="138" r="17"/>
-      <circle cx="213" cy="164" r="16"/>
-      <circle cx="192" cy="185" r="17"/>
-      <circle cx="162" cy="192" r="17"/>
-      <circle cx="132" cy="185" r="16"/>
-      <circle cx="113" cy="166" r="16"/>
-
-      <rect x="94.5" y="76" width="36" height="78" rx="18"
-            transform="rotate(-26.6 112.5 115)"/>
-
-      <ellipse cx="92" cy="64" rx="31" ry="28"/>
-      <circle cx="68" cy="68" r="15"/>
-      <circle cx="116" cy="68" r="15"/>
-      <circle cx="76" cy="36" r="15"/>
-      <circle cx="94" cy="29" r="16"/>
-      <circle cx="111" cy="37" r="14"/>
-    </g>
+    <!-- Classic screentone: a coarse dot grid, never a gradient. -->
+    <pattern id="tone" width="11" height="11" patternUnits="userSpaceOnUse">
+      <circle cx="3" cy="3" r="1.7" fill="#000"/>
+    </pattern>
   </defs>
 
-  <!-- ground shadow, breathing with the body -->
-  <ellipse cx="166" cy="242" rx="74" ry="8.5" fill="#6B5642" fill-opacity="0.13">
-    <animate attributeName="rx" values="74;70;74" keyTimes="0;0.5;1" dur="4.4s" repeatCount="indefinite"/>
-    <animate attributeName="fill-opacity" values="0.13;0.10;0.13" dur="4.4s" repeatCount="indefinite"/>
-  </ellipse>
+  <!-- The page -->
+  <rect x="0" y="0" width="900" height="420" fill="#fff"/>
 
-  <g>
-    <!-- one gentle bob for the whole animal, so no seam can open up -->
-    <animateTransform attributeName="transform" type="translate" additive="sum"
-                      values="0 0; 0 -3; 0 0" keyTimes="0;0.5;1"
-                      dur="4.4s" repeatCount="indefinite"/>
+  <!-- Corner screentone, clipped by the panel border below -->
+  <polygon points="16,16 400,16 16,170" fill="url(#tone)"/>
+  <polygon points="884,404 884,250 560,404" fill="url(#tone)"/>
 
-    <!-- Ears sit behind the head so their bases vanish under the topknot.
-         Short and triangular: long banana ears would read as a llama. -->
-    <g stroke="#6B5642" stroke-width="3.2" stroke-linejoin="round">
-      <g>
-        <animateTransform attributeName="transform" type="rotate" additive="sum"
-                          values="0 72 44; 0 72 44; -14 72 44; 5 72 44; 0 72 44; 0 72 44"
-                          keyTimes="0;0.55;0.62;0.7;0.78;1" dur="6.4s" repeatCount="indefinite"/>
-        <path d="M70,46 L59,7 L88,34 Z" fill="#F4E8D6"/>
-        <path d="M71,39 L64,17 L83,34 Z" fill="#C99C90" stroke="none"/>
-      </g>
-      <g>
-        <animateTransform attributeName="transform" type="rotate" additive="sum"
-                          values="0 114 44; 0 114 44; 11 114 44; -4 114 44; 0 114 44; 0 114 44"
-                          keyTimes="0;0.18;0.25;0.33;0.41;1" dur="6.4s" repeatCount="indefinite"/>
-        <path d="M116,46 L127,7 L98,34 Z" fill="#F4E8D6"/>
-        <path d="M115,39 L122,17 L103,34 Z" fill="#C99C90" stroke="none"/>
-      </g>
-    </g>
-
-    <!-- Outline by offset. Painting the silhouette twice in the same order
-         cannot work: the last shape drawn keeps its own full outline, since
-         nothing is painted after it to cover the stroke. Instead the whole
-         silhouette is drawn once as a solid dark blob widened by a thick
-         stroke, then the cream fill lands on top: the union of the fills
-         covers every interior pixel, and only the widened rim survives. -->
-    <use href="#silhouette" fill="#6B5642" stroke="#6B5642" stroke-width="8.4"
-         stroke-linejoin="round" stroke-linecap="round"/>
-    <use href="#silhouette" fill="url(#wool)" stroke="url(#wool)" stroke-width="1.6"
-         stroke-linejoin="round" stroke-linecap="round"/>
-
-    <!-- hooves -->
-    <g fill="#7C6650">
-      <path d="M122,222 h17 v6 a8.5,8.5 0 0 1 -17,0 z"/>
-      <path d="M148,222 h17 v6 a8.5,8.5 0 0 1 -17,0 z"/>
-      <path d="M178,222 h17 v6 a8.5,8.5 0 0 1 -17,0 z"/>
-      <path d="M204,222 h17 v6 a8.5,8.5 0 0 1 -17,0 z"/>
-    </g>
-
-
-    <!-- eyes -->
-    <g fill="#4A3A2C">
-      <ellipse cx="81" cy="62" rx="4.7" ry="5.9">
-        <animate attributeName="ry" values="5.9;5.9;0.5;5.9" keyTimes="0;0.93;0.965;1"
-                 dur="4.6s" repeatCount="indefinite"/>
-      </ellipse>
-      <ellipse cx="105" cy="62" rx="4.7" ry="5.9">
-        <animate attributeName="ry" values="5.9;5.9;0.5;5.9" keyTimes="0;0.93;0.965;1"
-                 dur="4.6s" repeatCount="indefinite"/>
-      </ellipse>
-    </g>
-    <g fill="#FFFFFF" fill-opacity="0.9">
-      <circle cx="82.7" cy="59.8" r="1.6"/>
-      <circle cx="106.7" cy="59.8" r="1.6"/>
-    </g>
-
-    <!-- blunt muzzle, chewing -->
-    <g>
-      <animateTransform attributeName="transform" type="translate" additive="sum"
-                        values="0 0; 0 1.4; 0 0; 0 1.2; 0 0; 0 0"
-                        keyTimes="0;0.05;0.1;0.15;0.2;1" dur="3.4s" repeatCount="indefinite"/>
-      <ellipse cx="93" cy="81" rx="18.5" ry="13.5" fill="#DDC2A2" stroke="#6B5642" stroke-width="3"/>
-      <ellipse cx="87" cy="77" rx="2.2" ry="2.7" fill="#6B5642"/>
-      <ellipse cx="99" cy="77" rx="2.2" ry="2.7" fill="#6B5642"/>
-      <path d="M87,86 Q93,90 99,86" fill="none" stroke="#6B5642" stroke-width="2.6" stroke-linecap="round"/>
-    </g>
+  <!-- Speed lines: tapering rules converging on the animal -->
+  <g stroke="#000" stroke-linecap="round" fill="none">
+    <path d="M 52 120 L 470 132" stroke-width="5"/>
+    <path d="M 40 160 L 440 165" stroke-width="3"/>
+    <path d="M 66 197 L 470 196" stroke-width="6"/>
+    <path d="M 46 232 L 430 226" stroke-width="2.5"/>
+    <path d="M 60 265 L 470 254" stroke-width="4"/>
   </g>
+
+  <!-- Broadcast arcs off the head: the one machine that serves the rest -->
+  <g stroke="#000" fill="none">
+    <path d="M 520 92 A 34 34 0 0 0 520 148" stroke-width="5.5"/>
+    <path d="M 496 78 A 56 56 0 0 0 496 162" stroke-width="4"/>
+    <path d="M 472 64 A 78 78 0 0 0 472 176" stroke-width="2.5"/>
+  </g>
+
+  <!-- The sprite, inked. Eyes and muzzle read as white gaps in the black. -->
+  <g transform="translate(560,64)" fill="#000">
+      <rect x="26" y="0" width="13" height="13"/>
+      <rect x="91" y="0" width="13" height="13"/>
+      <rect x="26" y="13" width="26" height="13"/>
+      <rect x="78" y="13" width="26" height="13"/>
+      <rect x="13" y="26" width="104" height="13"/>
+      <rect x="13" y="39" width="26" height="13"/>
+      <rect x="52" y="39" width="26" height="13"/>
+      <rect x="91" y="39" width="26" height="13"/>
+      <rect x="13" y="52" width="104" height="13"/>
+      <rect x="26" y="65" width="26" height="13"/>
+      <rect x="78" y="65" width="26" height="13"/>
+      <rect x="39" y="78" width="52" height="13"/>
+      <rect x="52" y="91" width="39" height="13"/>
+      <rect x="52" y="104" width="39" height="13"/>
+      <rect x="65" y="117" width="39" height="13"/>
+      <rect x="65" y="130" width="130" height="13"/>
+      <rect x="52" y="143" width="169" height="13"/>
+      <rect x="52" y="156" width="169" height="13"/>
+      <rect x="65" y="169" width="143" height="13"/>
+      <rect x="65" y="182" width="26" height="13"/>
+      <rect x="104" y="182" width="26" height="13"/>
+      <rect x="143" y="182" width="26" height="13"/>
+      <rect x="182" y="182" width="26" height="13"/>
+      <rect x="65" y="195" width="26" height="13"/>
+      <rect x="104" y="195" width="26" height="13"/>
+      <rect x="143" y="195" width="26" height="13"/>
+      <rect x="182" y="195" width="26" height="13"/>
+  </g>
+
+  <!-- Ground: one hard rule plus hatch ticks, no horizon fuss -->
+  <path d="M 90 276 L 852 276" stroke="#000" stroke-width="7" stroke-linecap="round"/>
+  <g stroke="#000" stroke-width="2.5" stroke-linecap="round">
+    <path d="M 140 290 L 122 306"/>
+    <path d="M 240 290 L 222 306"/>
+    <path d="M 350 290 L 332 306"/>
+    <path d="M 700 290 L 682 306"/>
+    <path d="M 800 290 L 782 306"/>
+  </g>
+
+  <!-- Wordmark -->
+  <text x="64" y="372" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" font-size="76" font-weight="800" fill="#000" letter-spacing="2">alpaca</text>
+
+  <!-- Panel border: heavy outer rule, hairline inner rule -->
+  <rect x="14" y="14" width="872" height="392" fill="none" stroke="#000" stroke-width="7"/>
+  <rect x="27" y="27" width="846" height="366" fill="none" stroke="#000" stroke-width="2"/>
 </svg>
