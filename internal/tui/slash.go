@@ -54,6 +54,19 @@ func (m *Model) runSlash(line string) tea.Cmd {
 		}
 		return m.runSearch(rest)
 
+	case "graph", "g":
+		if sub, arg, _ := strings.Cut(rest, " "); strings.EqualFold(sub, "model") {
+			if arg = strings.TrimSpace(arg); arg == "" {
+				return m.openGraphModelPicker()
+			}
+			chosen, ok := m.resolveModel(arg)
+			if !ok {
+				return m.setStatus(fmt.Sprintf("no model matching %q", arg), true)
+			}
+			return m.setGraphModel(chosen)
+		}
+		return m.openGraph()
+
 	case "stats", "info":
 		return m.stats()
 
@@ -62,9 +75,9 @@ func (m *Model) runSlash(line string) tea.Cmd {
 	}
 }
 
-// setModelByName resolves a partial model name, so "/model llama" works without
-// typing the full "llama3.2:latest".
-func (m *Model) setModelByName(want string) tea.Cmd {
+// resolveModel matches a partial model name against the server's list, so
+// "llama" finds "llama3.2:latest" without typing all of it.
+func (m *Model) resolveModel(want string) (string, bool) {
 	want = strings.ToLower(want)
 
 	var exact, prefix, contains string
@@ -87,7 +100,14 @@ func (m *Model) setModelByName(want string) tea.Cmd {
 	if chosen == "" {
 		chosen = contains
 	}
-	if chosen == "" {
+	return chosen, chosen != ""
+}
+
+// setModelByName resolves a partial model name, so "/model llama" works without
+// typing the full "llama3.2:latest".
+func (m *Model) setModelByName(want string) tea.Cmd {
+	chosen, ok := m.resolveModel(want)
+	if !ok {
 		return m.setStatus(fmt.Sprintf("no model matching %q — ctrl+p to see the list", want), true)
 	}
 

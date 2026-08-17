@@ -174,6 +174,9 @@ func (m *Model) choosePicked() tea.Cmd {
 		m.refreshViewport(true)
 		return tea.Batch(m.persist(), m.setStatus("model: "+item.id, false))
 
+	case pickerGraphModel:
+		return m.setGraphModel(item.id)
+
 	case pickerSession:
 		if item.id == m.sess.ID {
 			return nil

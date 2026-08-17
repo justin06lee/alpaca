@@ -40,6 +40,9 @@ func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if m.mode != pickerNone {
 		return m.handlePickerKey(msg)
 	}
+	if m.graphOpen {
+		return m.handleGraphKey(msg)
+	}
 	return m.handleChatKey(msg)
 }
 
@@ -212,6 +215,9 @@ const wheelStep = 3
 func (m *Model) handleMouse(msg tea.MouseMsg) tea.Cmd {
 	if !m.splashDone || m.showHelp {
 		return nil
+	}
+	if m.graphOpen && m.mode == pickerNone {
+		return m.handleGraphMouse(msg)
 	}
 	popupOpen := m.viewAttach >= 0 || m.viewMsg >= 0
 

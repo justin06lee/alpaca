@@ -245,7 +245,7 @@ network.
 
 Slash commands do the same things, plus `/search <query>` when the server has
 search enabled: `/model`, `/new`, `/sessions`, `/system`, `/retry`, `/copy`,
-`/clear`, `/search`, `/stats`, `/help`, `/quit`.
+`/clear`, `/search`, `/graph`, `/stats`, `/help`, `/quit`.
 
 The composer grows with what you type, up to about a third of the screen, and
 scrolls inside its frame past that — the cursor stays in view either way.
@@ -281,6 +281,21 @@ between variants, with nested branches resuming exactly where you left them.
 
 Branches persist in the session file with the rest of the chat. Regenerating
 a reply (`ctrl+r`) still replaces it in place — only editing a prompt forks.
+
+### The conversation graph
+
+`/graph` draws the whole conversation as a tree: every prompt (`●`) and reply
+(`○`) compressed to one line, forks fanned out sideways with a `✦`, the live
+branch bright and the abandoned ones dimmed. `↑`/`↓` or the wheel move,
+`enter` or a click jumps to that message in the chat — switching branches on
+the way when it lives on an inactive one — and `esc` closes.
+
+The one-line labels come from a **graphing model**: `/graph model` picks one
+(`m` inside the graph does the same, `r` re-summarizes everything with it);
+until you choose, the chat model does double duty. Each message is summarized
+once, in the background while the graph is open, and the sentence is saved
+into the session file — a message never changes after it is sent, so its
+summary never goes stale.
 
 Drag with the mouse to select text — in the chat, the composer, even inside a
 popup. The highlight follows the drag, and releasing the button copies the
