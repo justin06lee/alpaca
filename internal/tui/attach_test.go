@@ -197,7 +197,7 @@ func TestSendFoldsAttachmentsIntoTheMessage(t *testing.T) {
 // A long sent message folds in the transcript instead of burying it.
 func TestUserBubbleFoldsLongMessages(t *testing.T) {
 	m := readyModel(t)
-	bubble := stripANSI(m.renderMessage(client.Message{
+	bubble := stripANSI(m.renderMessage(0, client.Message{
 		Role: client.RoleUser, Content: strings.Repeat("row\n", 30) + "last",
 	}))
 

@@ -83,6 +83,10 @@ type Model struct {
 	// viewMsg is the sent message open in the full-content popup; -1 closed.
 	viewMsg int
 
+	// editFrom is the message index an edit-in-progress will branch from;
+	// -1 when the composer holds an ordinary new message.
+	editFrom int
+
 	// blockSeq numbers code blocks as the transcript renders; copiedBlock is
 	// the one whose control reads "copied!" until the flash expires, and
 	// copiedSeq guards stale expiry timers the same way statusSeq does.
@@ -169,6 +173,7 @@ func New(connect Connector, store *session.Store, profiles *config.Profiles, pro
 		attachFocus: -1,
 		viewAttach:  -1,
 		viewMsg:     -1,
+		editFrom:    -1,
 		copiedBlock: -1,
 	}
 }

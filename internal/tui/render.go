@@ -83,6 +83,10 @@ var (
 
 	styleComposerActive = styleComposer.BorderForeground(colorAccent)
 
+	// The frame turns warm yellow while the composer holds an edit, so a
+	// branch-in-progress never masquerades as a fresh message.
+	styleComposerEditing = styleComposer.BorderForeground(colorWarn)
+
 	// Mouse-drag selection. Cool slate on a warm screen: the one thing that
 	// is transient interface state rather than conversation, so it gets the
 	// one colour nothing else uses.
@@ -173,8 +177,9 @@ func (m *Model) bubbleMax() int {
 	return max
 }
 
-// renderMessage formats one stored message.
-func (m *Model) renderMessage(msg client.Message) string {
+// renderMessage formats one stored message. The index is what lets a fork
+// point show its variant marker.
+func (m *Model) renderMessage(i int, msg client.Message) string {
 	switch msg.Role {
 	case client.RoleUser:
 		// Width covers content plus padding, and lipgloss wraps content at
@@ -182,8 +187,17 @@ func (m *Model) renderMessage(msg client.Message) string {
 		// wide as its bubble wrapped its own last word onto a second line.
 		content := collapseLongText(msg.Content)
 		bubble := styleUserBubble.Width(fitWidth(content, m.bubbleMax()) + 2).Render(content)
-		return lipgloss.NewStyle().Width(m.contentWidth()).
+		block := lipgloss.NewStyle().Width(m.contentWidth()).
 			Align(lipgloss.Right).Render(bubble)
+		// A branched prompt wears its variant marker under the bubble: the
+		// star says "this one forks", the counter says where you are, and
+		// clicking the bubble is where ←/→ walk the alternatives.
+		if k, n := m.sess.Variants(i); n > 1 {
+			tag := styleWarn.Render("✦ ") + styleMuted.Render(fmt.Sprintf("‹ %d/%d ›", k, n))
+			block += "\n" + lipgloss.NewStyle().Width(m.contentWidth()).
+				Align(lipgloss.Right).Render(tag)
+		}
+		return block
 
 	case client.RoleAssistant:
 		return m.assistantBlock(m.renderRichText(msg.Content))
@@ -277,7 +291,7 @@ func (m *Model) conversation() string {
 		if i < len(m.rendered) {
 			rendered = m.rendered[i]
 		} else {
-			rendered = m.renderMessage(msg)
+			rendered = m.renderMessage(i, msg)
 		}
 		b.WriteString(rendered)
 		b.WriteString("\n\n")
@@ -317,8 +331,8 @@ func (m *Model) conversation() string {
 func (m *Model) rebuildCache() {
 	m.blockSeq = 0 // code blocks number from the top on a full re-render
 	m.rendered = m.rendered[:0]
-	for _, msg := range m.sess.Messages {
-		m.rendered = append(m.rendered, m.renderMessage(msg))
+	for i, msg := range m.sess.Messages {
+		m.rendered = append(m.rendered, m.renderMessage(i, msg))
 	}
 }
 
@@ -332,9 +346,9 @@ func (m *Model) cacheLast() {
 	m.blockSeq = countCodeBlocks(m.sess.Messages[:minInt(len(m.rendered), len(m.sess.Messages))])
 	idx := len(m.sess.Messages) - 1
 	for len(m.rendered) < idx {
-		m.rendered = append(m.rendered, m.renderMessage(m.sess.Messages[len(m.rendered)]))
+		m.rendered = append(m.rendered, m.renderMessage(len(m.rendered), m.sess.Messages[len(m.rendered)]))
 	}
-	m.rendered = append(m.rendered, m.renderMessage(m.sess.Messages[idx]))
+	m.rendered = append(m.rendered, m.renderMessage(idx, m.sess.Messages[idx]))
 }
 
 // header renders the top bar: who we are talking to and how we got there.
@@ -381,9 +395,12 @@ func (m *Model) statusBar() string {
 	}
 
 	var parts []string
-	if m.streaming {
+	switch {
+	case m.streaming:
 		parts = append(parts, styleWarn.Render("streaming"))
-	} else {
+	case m.editFrom >= 0:
+		parts = append(parts, styleWarn.Render("✎ editing — enter sends a new branch · esc cancels"))
+	default:
 		parts = append(parts, styleMuted.Render(fmt.Sprintf("%d messages", len(m.sess.Messages))))
 	}
 

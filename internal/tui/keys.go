@@ -70,6 +70,9 @@ func (m *Model) handleChatKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.stopStream()
 			return m, nil
 		}
+		if m.editFrom >= 0 {
+			return m, m.cancelEdit()
+		}
 		if m.input.Value() != "" {
 			m.input.Reset()
 			return m, nil

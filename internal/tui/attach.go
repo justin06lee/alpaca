@@ -251,6 +251,23 @@ func (m *Model) handlePopupKey(msg tea.KeyMsg) tea.Cmd {
 	case tea.KeyPgDown:
 		m.attachScroll += attachViewPage
 		return nil
+
+	// ←/→ walk a sent message's sibling branches, when it has any.
+	case tea.KeyLeft:
+		if m.viewMsg >= 0 {
+			return m.switchVariant(m.viewMsg, -1)
+		}
+		return nil
+	case tea.KeyRight:
+		if m.viewMsg >= 0 {
+			return m.switchVariant(m.viewMsg, 1)
+		}
+		return nil
+	}
+
+	// e pulls the viewed prompt back into the composer to branch from.
+	if msg.String() == "e" && m.viewMsg >= 0 {
+		return m.editMessage(m.viewMsg)
 	}
 
 	if msg.String() == "y" || msg.String() == "c" {
@@ -344,7 +361,12 @@ func (m *Model) messagePopover(base string) string {
 	lines := strings.Split(m.sess.Messages[m.viewMsg].Content, "\n")
 	body, first, last := m.popupWindow(lines, inner, rows)
 	title := fmt.Sprintf("your message · lines %d–%d of %d", first, last, len(lines))
-	return m.floatPopup(base, title, body, "↑/↓ scroll · y copy · esc close", outer)
+	footer := "↑/↓ scroll · e edit & branch · y copy · esc close"
+	if k, n := m.sess.Variants(m.viewMsg); n > 1 {
+		title = fmt.Sprintf("your message ‹ %d/%d › · lines %d–%d of %d", k, n, first, last, len(lines))
+		footer = "←/→ switch branch · e edit · ↑/↓ scroll · y copy · esc"
+	}
+	return m.floatPopup(base, title, body, footer, outer)
 }
 
 // imagePreview renders the image with half blocks, two pixels per cell, each

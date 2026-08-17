@@ -21,16 +21,27 @@ import (
 
 // Session is one conversation.
 type Session struct {
-	ID       string           `json:"id"`
-	Title    string           `json:"title"`
-	Model    string           `json:"model"`
-	System   string           `json:"system"`
+	ID     string `json:"id"`
+	Title  string `json:"title"`
+	Model  string `json:"model"`
+	System string `json:"system"`
+	// Messages is the active path through the conversation tree, kept flat so
+	// rendering, the wire format, and old alpaca versions all read it as-is.
 	Messages []client.Message `json:"messages"`
 	Created  time.Time        `json:"created"`
 	Updated  time.Time        `json:"updated"`
 	// Server records which profile this conversation belongs to, so switching
 	// servers does not mix histories.
 	Server string `json:"server,omitempty"`
+
+	// The branch tree (see tree.go). Empty for a conversation that has never
+	// been branched by a tree-aware operation; sessions written before
+	// branching existed load with these fields blank and get a tree backfilled
+	// from Messages on first use.
+	Tree    map[string]*Node `json:"tree,omitempty"`
+	Roots   []string         `json:"roots,omitempty"`
+	RootSel string           `json:"root_sel,omitempty"`
+	Head    string           `json:"head,omitempty"`
 }
 
 // New starts an empty session.
@@ -49,8 +60,11 @@ func New(model, server string) *Session {
 	}
 }
 
-// Append adds a message and refreshes the derived title.
+// Append adds a message and refreshes the derived title. The tree grows in
+// step: the new message becomes a child of the current head — or a sibling
+// branch, when Rebase moved the head first.
 func (s *Session) Append(msg client.Message) {
+	s.appendNode(msg)
 	s.Messages = append(s.Messages, msg)
 	s.Updated = time.Now()
 	if s.Title == "" && msg.Role == client.RoleUser {
@@ -70,16 +84,38 @@ func (s *Session) LastAssistant() (client.Message, bool) {
 
 // DropAfterLastUser removes the trailing assistant reply so it can be
 // regenerated, and returns the user prompt that produced it.
+//
+// A retry replaces rather than branches, so the dropped nodes leave the tree
+// too — otherwise every regeneration would accumulate as a phantom variant.
 func (s *Session) DropAfterLastUser() (client.Message, bool) {
 	for i := len(s.Messages) - 1; i >= 0; i-- {
 		if s.Messages[i].Role == client.RoleUser {
 			prompt := s.Messages[i]
+			if len(s.Tree) > 0 {
+				ids := s.path()
+				for _, id := range ids[i+1:] {
+					s.removeSubtree(id)
+				}
+				s.Head = ids[i]
+			}
 			s.Messages = s.Messages[:i+1]
 			s.Updated = time.Now()
 			return prompt, true
 		}
 	}
 	return client.Message{}, false
+}
+
+// Clear empties the conversation, branches included, keeping the model and
+// system prompt.
+func (s *Session) Clear() {
+	s.Messages = nil
+	s.Title = ""
+	s.Tree = nil
+	s.Roots = nil
+	s.RootSel = ""
+	s.Head = ""
+	s.Updated = time.Now()
 }
 
 // Wire builds the message list to send, prepending the system prompt.
