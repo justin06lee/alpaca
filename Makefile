@@ -35,32 +35,13 @@ PLATFORMS := \
 	darwin/arm64 \
 	windows/amd64
 
-# The desktop app: the same binary, wrapped for whichever desktop is here. A
-# bundle on macOS, a .desktop entry on Linux; both launch it with no terminal
-# attached, which is what routes the bare binary into gui mode.
-APP     := Alpaca
-APPDIR  := build/$(APP).app
-UNAME_S := $(shell uname -s)
-
-# Linux desktop entry and icon, per-user so no target needs root.
-XDG_APPS  := $(HOME)/.local/share/applications
-XDG_ICONS := $(HOME)/.local/share/icons/hicolor
-
-.PHONY: all build install update uninstall where test test-live lint fmt cross clean run \
-	app app-install icns desktop desktop-install
+.PHONY: all build install update uninstall where test test-live lint fmt cross clean run
 
 # The golden path: a bare `make` leaves `alpaca` runnable by name from any
-# directory — and the desktop app installed for the desktop in front of you:
-# $(APP).app in /Applications on macOS, a launcher entry on Linux. There is no
-# daemon to launch on this machine — serving happens wherever `alpaca serve`
-# runs — so building and installing is the whole journey.
-ifeq ($(UNAME_S),Darwin)
-all: install app-install
-else ifeq ($(UNAME_S),Linux)
-all: install desktop-install
-else
+# directory. There is no daemon to launch on this machine — serving happens
+# wherever `alpaca serve` runs — so building and installing is the whole
+# journey.
 all: install
-endif
 
 build:
 	go build -ldflags "$(LDFLAGS)" -o $(BINARY) $(PKG)
@@ -93,10 +74,10 @@ install: build
 		echo "run it from anywhere:  $(BINARY) serve"; \
 	fi
 
-# Full refresh of a live install: stop anything running the old binary,
-# remove it (the app bundle included), then build and install fresh. Chat
-# sessions are interactive and cannot be resurrected, so unlike a daemon
-# there is nothing to restart — rerun `alpaca chat` (or reopen the app).
+# Full refresh of a live install: stop anything running the old binary, remove
+# it, then build and install fresh. Chat sessions are interactive and cannot be
+# resurrected, so unlike a daemon there is nothing to restart — rerun
+# `alpaca chat`.
 update:
 	-pkill -x $(BINARY) 2>/dev/null || true
 	@if [ -w "$(BINDIR)" ]; then rm -f "$(BINDIR)/$(BINARY)"; \
@@ -107,67 +88,6 @@ uninstall:
 	@if [ -w "$(BINDIR)" ]; then rm -f "$(BINDIR)/$(BINARY)"; \
 	else sudo rm -f "$(BINDIR)/$(BINARY)"; fi
 	@echo "removed $(BINDIR)/$(BINARY)"
-	@if [ "$(UNAME_S)" = "Darwin" ] && [ -d "/Applications/$(APP).app" ]; then \
-		rm -rf "/Applications/$(APP).app" 2>/dev/null || sudo rm -rf "/Applications/$(APP).app"; \
-		echo "removed /Applications/$(APP).app"; \
-	fi
-	@if [ "$(UNAME_S)" = "Linux" ] && [ -f "$(XDG_APPS)/alpaca.desktop" ]; then \
-		rm -f "$(XDG_APPS)/alpaca.desktop"; \
-		rm -f "$(XDG_ICONS)"/*/apps/alpaca.png "$(XDG_ICONS)/scalable/apps/alpaca.svg"; \
-		echo "removed $(XDG_APPS)/alpaca.desktop"; \
-	fi
-
-# ── the desktop app ────────────────────────────────────────────────────────
-
-app: build
-	rm -rf $(APPDIR)
-	mkdir -p $(APPDIR)/Contents/MacOS $(APPDIR)/Contents/Resources
-	install -m 0755 $(BINARY) $(APPDIR)/Contents/MacOS/$(BINARY)
-	sed 's/@VERSION@/$(VERSION)/g' packaging/Info.plist > $(APPDIR)/Contents/Info.plist
-	-@$(MAKE) --no-print-directory icns
-	@if [ -f build/alpaca.icns ]; then cp build/alpaca.icns $(APPDIR)/Contents/Resources/alpaca.icns; fi
-	@echo "assembled $(APPDIR)"
-
-app-install: app
-	@rm -rf "/Applications/$(APP).app" 2>/dev/null || sudo rm -rf "/Applications/$(APP).app"
-	@cp -R $(APPDIR) /Applications/ 2>/dev/null || sudo cp -R $(APPDIR) /Applications/
-	@echo "installed /Applications/$(APP).app"
-
-# The Linux launcher: a .desktop entry pointing at the installed binary, and
-# the same pixel face as its icon. Both go under $$HOME, so no step here wants
-# root and nothing outside the user's own session is touched.
-desktop-install: install
-	@mkdir -p "$(XDG_APPS)"
-	@sed 's|@BINDIR@|$(BINDIR)|g' packaging/alpaca.desktop > "$(XDG_APPS)/alpaca.desktop"
-	@chmod 0644 "$(XDG_APPS)/alpaca.desktop"
-	@if command -v rsvg-convert >/dev/null 2>&1; then \
-		for size in 16 32 48 64 128 256 512; do \
-			mkdir -p "$(XDG_ICONS)/$${size}x$${size}/apps"; \
-			rsvg-convert -w $$size -h $$size -o "$(XDG_ICONS)/$${size}x$${size}/apps/alpaca.png" assets/icon.svg; \
-		done; \
-	else \
-		mkdir -p "$(XDG_ICONS)/scalable/apps"; \
-		cp assets/icon.svg "$(XDG_ICONS)/scalable/apps/alpaca.svg"; \
-		echo "rsvg-convert not found (apt install librsvg2-bin) — installed the svg icon instead"; \
-	fi
-	-@command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database "$(XDG_APPS)" 2>/dev/null || true
-	-@command -v gtk-update-icon-cache >/dev/null 2>&1 && gtk-update-icon-cache -f -t "$(XDG_ICONS)" 2>/dev/null || true
-	@echo "installed $(XDG_APPS)/alpaca.desktop"
-
-# Alias, so `make desktop` reads the way `make app` does on macOS.
-desktop: desktop-install
-
-# The icon renders from assets/icon.svg when the tools are around
-# (rsvg-convert via homebrew; iconutil ships with macOS). Without them the
-# app still works, it just wears the generic icon.
-icns:
-	@command -v rsvg-convert >/dev/null 2>&1 || { echo "rsvg-convert not found — skipping the icon"; exit 1; }
-	@rm -rf build/alpaca.iconset && mkdir -p build/alpaca.iconset
-	@for size in 16 32 128 256 512; do \
-		rsvg-convert -w $$size -h $$size -o build/alpaca.iconset/icon_$${size}x$${size}.png assets/icon.svg; \
-		rsvg-convert -w $$((size * 2)) -h $$((size * 2)) -o build/alpaca.iconset/icon_$${size}x$${size}@2x.png assets/icon.svg; \
-	done
-	@iconutil -c icns build/alpaca.iconset -o build/alpaca.icns
 
 # Shows where install would put things, without touching anything.
 where:

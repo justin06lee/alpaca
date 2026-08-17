@@ -18,7 +18,7 @@ import (
 
 // Layout constants, in terminal rows.
 const (
-	headerHeight = 5 // meta line, a blank, two rows of the pixel face, a blank
+	headerHeight = 4 // meta line, two rows of the pixel face, a blank
 	inputHeight  = composerMinRows
 	chromeHeight = headerHeight + inputHeight + 2
 )

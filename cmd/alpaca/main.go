@@ -9,49 +9,36 @@ import (
 	"os"
 	"runtime/debug"
 	"strings"
+
+	"golang.org/x/term"
 )
 
 // version is overridden at build time with -ldflags "-X main.version=…".
 var version = ""
 
-// bareCommand picks the surface for a bare `alpaca`, from whether a terminal
-// is actually attached to each end. It returns "" when neither surface fits.
+// isTerminal reports whether f is an interactive terminal.
 //
-// The environment cannot be asked about this, however tempting TERM looks.
-// LaunchServices hands a bundled app whatever the login session holds, TERM
-// included, so a Finder launch read as a shell pipeline here and exited 2 into
-// a stdout nobody could see: the app appeared to die the instant it was
-// clicked. Only the file descriptors know whether a terminal is really there.
-func bareCommand(stdinTTY, stdoutTTY bool) string {
-	switch {
-	case stdinTTY && stdoutTTY:
-		// Booted bare from a terminal: the TUI is what that means.
-		return "chat"
-	case !stdinTTY && !stdoutTTY:
-		// Neither end is a terminal — double-clicked, Dock, Spotlight, a
-		// desktop launcher. That is the desktop launch, so it gets the window.
-		return "gui"
-	default:
-		// One end is a terminal and the other is not: a pipe or a redirect.
-		return ""
-	}
+// It must be the real ioctl rather than a file-mode sniff: /dev/null is a
+// character device, so os.ModeCharDevice happily calls it a terminal, and
+// anything launched with its stdio redirected there would be handed the TUI.
+func isTerminal(f *os.File) bool {
+	return term.IsTerminal(int(f.Fd()))
 }
 
 func main() {
 	rest := os.Args[1:]
-	// Finder passes a -psn_… process serial on some macOS versions; it is
-	// launch plumbing, not a command.
-	if len(rest) > 0 && strings.HasPrefix(rest[0], "-psn") {
-		rest = rest[1:]
-	}
 
 	var command string
 	var args []string
 	if len(rest) > 0 {
 		command, args = rest[0], rest[1:]
-	} else if command = bareCommand(isTerminal(os.Stdin), isTerminal(os.Stdout)); command == "" {
-		// A shell pipeline, where neither surface is wanted. Say how this
-		// works instead.
+	} else if isTerminal(os.Stdin) && isTerminal(os.Stdout) {
+		// Booted bare from a terminal: the TUI is what that means.
+		command = "chat"
+	} else {
+		// A pipe, a redirect, or anything else without a terminal on both
+		// ends. The interface needs one, so say how this works instead of
+		// painting a screen into something that cannot show it.
 		usage()
 		os.Exit(2)
 	}
@@ -62,8 +49,6 @@ func main() {
 		err = runServe(args)
 	case "chat":
 		err = runChat(args)
-	case "gui":
-		err = runGui(args)
 	case "link":
 		err = runLink(args)
 	case "ask":
@@ -124,12 +109,10 @@ ON THE MACHINE WITH THE MODEL
 
 ON EVERY OTHER MACHINE
   alpaca link <connect-string> save the server (paste what serve printed)
-  alpaca chat                  open the chat interface in the terminal
-  alpaca gui                   open it as a desktop window instead
+  alpaca chat                  open the chat interface
   alpaca ask "question"        one-shot answer, prints to stdout
 
-A bare "alpaca" opens chat in a terminal and gui everywhere else, which is
-what makes double-clicking Alpaca.app work.
+A bare "alpaca" is the same as "alpaca chat".
 
 OTHER
   alpaca models                list models on the server
