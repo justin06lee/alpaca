@@ -53,8 +53,14 @@ func New(base string) (*Client, error) {
 		// protect against a daemon that accepts a connection and then stalls.
 		http: &http.Client{
 			Transport: &http.Transport{
-				DialContext:           (&net.Dialer{Timeout: 5 * time.Second}).DialContext,
-				ResponseHeaderTimeout: 60 * time.Second,
+				DialContext: (&net.Dialer{Timeout: 5 * time.Second}).DialContext,
+				// Ollama sends response headers only after the model is in
+				// memory, and a first-ever cold load reads the whole model
+				// off disk — over a minute for a 13 GB model on a busy box.
+				// 60 seconds here turned every truly cold start into
+				// "timeout awaiting response headers"; page cache made later
+				// loads fast, which is what made the failure look random.
+				ResponseHeaderTimeout: 5 * time.Minute,
 				IdleConnTimeout:       90 * time.Second,
 				MaxIdleConnsPerHost:   4,
 			},
