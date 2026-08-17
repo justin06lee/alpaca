@@ -46,9 +46,10 @@ func (s *Session) newNodeID() string {
 	return fmt.Sprintf("n%d-%d", time.Now().UnixNano(), len(s.Tree))
 }
 
-// ensureTree backfills the tree for a session recorded before branching
-// existed: the flat history becomes a single chain ending at Head.
-func (s *Session) ensureTree() {
+// EnsureTree backfills the tree for a session recorded before branching
+// existed: the flat history becomes a single chain ending at Head. Exported
+// because the graph view walks the tree directly.
+func (s *Session) EnsureTree() {
 	if s.Tree == nil {
 		s.Tree = map[string]*Node{}
 	}
@@ -131,7 +132,7 @@ func (s *Session) syncMessages() {
 
 // appendNode grows the tree under the current head and moves the head there.
 func (s *Session) appendNode(msg client.Message) {
-	s.ensureTree()
+	s.EnsureTree()
 	id := s.newNodeID()
 	node := &Node{ID: id, Parent: s.Head, Msg: msg}
 	s.Tree[id] = node
@@ -150,7 +151,7 @@ func (s *Session) appendNode(msg client.Message) {
 // history is cut back, while the old continuation stays in the tree as a
 // branch. The next Append becomes message i's sibling.
 func (s *Session) Rebase(i int) bool {
-	s.ensureTree()
+	s.EnsureTree()
 	ids := s.path()
 	if i < 0 || i >= len(ids) {
 		return false
@@ -184,7 +185,7 @@ func (s *Session) Variants(i int) (k, n int) {
 // sibling delta steps away, wrapping at the ends. It reports whether anything
 // changed.
 func (s *Session) SwitchVariant(i, delta int) bool {
-	s.ensureTree()
+	s.EnsureTree()
 	ids := s.path()
 	if i < 0 || i >= len(ids) {
 		return false
@@ -211,7 +212,7 @@ func (s *Session) SwitchVariant(i, delta int) bool {
 // ActivateNode makes the path through a node the live conversation and
 // reports the node's index in Messages, or -1 if the node is unknown.
 func (s *Session) ActivateNode(id string) int {
-	s.ensureTree()
+	s.EnsureTree()
 	if _, ok := s.Tree[id]; !ok {
 		return -1
 	}
@@ -276,7 +277,7 @@ func (s *Session) removeSubtree(id string) {
 // Walk visits the whole tree depth-first in creation order, telling the
 // visitor each node's depth and whether it lies on the active path.
 func (s *Session) Walk(visit func(node *Node, depth int, onPath bool)) {
-	s.ensureTree()
+	s.EnsureTree()
 	onPath := map[string]bool{}
 	for _, id := range s.path() {
 		onPath[id] = true

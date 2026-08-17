@@ -12,6 +12,7 @@ const (
 	pickerNone pickerKind = iota
 	pickerModel
 	pickerSession
+	pickerGraphModel
 )
 
 type pickerItem struct {

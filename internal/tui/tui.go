@@ -87,6 +87,16 @@ type Model struct {
 	// -1 when the composer holds an ordinary new message.
 	editFrom int
 
+	// The /graph view's state (see graph.go): the flattened tree, cursor,
+	// scroll, and the progress of the summarization chain.
+	graphOpen  bool
+	graphRows  []graphRow
+	graphCur   int
+	graphOff   int
+	graphBusy  bool
+	graphDone  int
+	graphTotal int
+
 	// blockSeq numbers code blocks as the transcript renders; copiedBlock is
 	// the one whose control reads "copied!" until the flash expires, and
 	// copiedSeq guards stale expiry timers the same way statusSeq does.
@@ -220,6 +230,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case searchDoneMsg:
 		return m, m.applySearch(msg)
+
+	case graphSumMsg:
+		return m, m.handleGraphSum(msg)
 
 	case streamEvent:
 		return m, m.handleStreamEvent(msg)
@@ -406,11 +419,15 @@ func (m *Model) viewFrame() string {
 
 	// The pickers and the help float over the conversation rather than
 	// replacing it — the chat is the context those decisions are made in.
+	// The graph is the exception: a tree wants the whole screen.
 	base := m.baseView()
+	if m.graphOpen {
+		base = m.graphView()
+	}
 	switch {
 	case m.showHelp:
 		return m.helpOverlay(base)
-	case m.mode == pickerModel:
+	case m.mode == pickerModel, m.mode == pickerGraphModel:
 		return m.modelPopover(base)
 	case m.mode == pickerSession:
 		return m.sessionSidebar(base)

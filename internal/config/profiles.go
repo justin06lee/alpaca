@@ -37,6 +37,9 @@ type Profile struct {
 	// Model and System persist the user's last choices for this server.
 	Model  string `json:"model,omitempty"`
 	System string `json:"system,omitempty"`
+	// GraphModel is the model /graph summarizes conversations with; empty
+	// means the session's chat model does double duty.
+	GraphModel string `json:"graph_model,omitempty"`
 }
 
 // Profiles is the client-side profile store.

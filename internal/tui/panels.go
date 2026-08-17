@@ -133,9 +133,9 @@ func helpContent() string {
 		{"/copy", "copy the last reply to the clipboard"},
 		{"/clear", "delete this chat's messages"},
 		{"/search <query>", "search the web and add the results here"},
+		{"/graph", "map the whole conversation tree, summarized"},
 		{"/stats", "show connection and token details"},
-		{"/help", "this screen"},
-		{"/quit", "exit"},
+		{"/help · /quit", "this screen · exit"},
 	} {
 		b.WriteString(styleStatusKey.Render(fmt.Sprintf("%-18s", row[0])) + styleMuted.Render(row[1]))
 		b.WriteString("\n")
