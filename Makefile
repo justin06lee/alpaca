@@ -35,17 +35,7 @@ PLATFORMS := \
 	darwin/arm64 \
 	windows/amd64
 
-# Where the user's Emacs configuration lives: the XDG location when it is in
-# use, the classic ~/.emacs.d otherwise. The autoload block lands in ~/.emacs
-# when that file exists (Emacs reads it in preference to init.el), else in the
-# config dir's init.el, created if missing.
-EMACSDIR  ?= $(shell if [ -d "$$HOME/.config/emacs" ]; then \
-		echo "$$HOME/.config/emacs"; else echo "$$HOME/.emacs.d"; fi)
-EMACSINIT ?= $(shell if [ -f "$$HOME/.emacs" ]; then \
-		echo "$$HOME/.emacs"; else echo "$(EMACSDIR)/init.el"; fi)
-
-.PHONY: all build install update uninstall where test test-live lint fmt cross clean run \
-	emacs emacs-install emacs-uninstall
+.PHONY: all build install update uninstall where test test-live lint fmt cross clean run
 
 # The golden path: a bare `make` leaves `alpaca` runnable by name from any
 # directory. There is no daemon to launch on this machine — serving happens
@@ -132,39 +122,6 @@ cross:
 	done
 	@echo
 	@ls -lh dist/
-
-# M-x alpaca inside Emacs. Installs the binary first — the Emacs commands run
-# it by name — then copies the package into the configuration and appends a
-# marked autoload block to the init file, exactly once. `make emacs` is an
-# alias, so `make emacs install` also lands somewhere sensible.
-emacs: emacs-install
-
-emacs-install: install
-	@mkdir -p "$(EMACSDIR)/site-lisp/alpaca"
-	@install -m 0644 emacs/alpaca.el "$(EMACSDIR)/site-lisp/alpaca/alpaca.el"
-	@echo "installed $(EMACSDIR)/site-lisp/alpaca/alpaca.el"
-	@mkdir -p "$$(dirname "$(EMACSINIT)")" && touch "$(EMACSINIT)"
-	@if grep -q '>>> alpaca' "$(EMACSINIT)"; then \
-		echo "autoloads already wired into $(EMACSINIT)"; \
-	else \
-		{ echo ''; \
-		  echo ';; >>> alpaca (managed by make emacs-install / make emacs-uninstall)'; \
-		  echo '(add-to-list (quote load-path) "$(EMACSDIR)/site-lisp/alpaca")'; \
-		  echo '(autoload (quote alpaca) "alpaca" "Open the alpaca chat TUI." t)'; \
-		  echo '(autoload (quote alpaca-demo) "alpaca" "Open the alpaca chat TUI in demo mode." t)'; \
-		  echo '(autoload (quote alpaca-serve) "alpaca" "Run alpaca serve in a buffer." t)'; \
-		  echo ';; <<< alpaca'; \
-		} >> "$(EMACSINIT)"; \
-		echo "wired autoloads into $(EMACSINIT)"; \
-	fi
-	@echo "M-x alpaca opens the chat — restart Emacs (or eval the new init block) first"
-
-emacs-uninstall:
-	rm -rf "$(EMACSDIR)/site-lisp/alpaca"
-	@if [ -f "$(EMACSINIT)" ] && grep -q '>>> alpaca' "$(EMACSINIT)"; then \
-		perl -ni -e 'print unless />>> alpaca/ .. /<<< alpaca/' "$(EMACSINIT)"; \
-		echo "removed the alpaca block from $(EMACSINIT)"; \
-	fi
 
 run: build
 	./$(BINARY) serve
