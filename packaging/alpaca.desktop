@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Alpaca
+GenericName=Model Chat
+Comment=Chat with a model you host yourself
+Exec=@BINDIR@/alpaca gui
+Icon=alpaca
+Terminal=false
+StartupNotify=true
+Categories=Development;Utility;Network;
+Keywords=llm;ollama;chat;ai;

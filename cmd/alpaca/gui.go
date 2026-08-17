@@ -15,6 +15,8 @@ import (
 	"syscall"
 	"time"
 
+	"golang.org/x/term"
+
 	"github.com/justin06lee/alpaca/internal/client"
 	"github.com/justin06lee/alpaca/internal/session"
 	"github.com/justin06lee/alpaca/internal/webui"
@@ -168,9 +170,13 @@ Alpaca.app (or running the bare binary outside a terminal) lands here too.
 }
 
 // isTerminal reports whether f is an interactive terminal.
+//
+// It must be the real ioctl, not a file-mode sniff: Finder launches the app
+// with /dev/null on stdin and stdout, and /dev/null is a character device —
+// ModeCharDevice happily called it a terminal, which routed a double-click
+// into the TUI and took the whole app down before anything drew.
 func isTerminal(f *os.File) bool {
-	info, err := f.Stat()
-	return err == nil && info.Mode()&os.ModeCharDevice != 0
+	return term.IsTerminal(int(f.Fd()))
 }
 
 // openBrowser hands the URL to the platform's opener; a failure is not fatal,

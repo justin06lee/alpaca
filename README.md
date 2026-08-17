@@ -342,9 +342,15 @@ where you left off.
 
 The same binary is also a desktop application. On macOS, `make` assembles
 **Alpaca.app** and puts it in `/Applications`; launch it from the Dock,
-Spotlight, or Finder and the chat opens as a window. Booted bare from a
-terminal, `alpaca` opens the TUI instead — one binary, and the way you start
-it picks the surface.
+Spotlight, or Finder and the chat opens as a window. On Linux — including
+arm64 Ubuntu — `make` installs an **Alpaca** launcher entry into your
+applications menu, wearing the same icon. Booted bare from a terminal,
+`alpaca` opens the TUI instead — one binary, and the way you start it picks
+the surface.
+
+The surface is chosen from the file descriptors, not the environment: a
+terminal on both stdin and stdout means the TUI, neither means the desktop
+window, and one of each is a shell pipeline that gets usage instead.
 
 `alpaca gui` is the explicit form (and works on any platform):
 
@@ -425,16 +431,19 @@ make test       # everything, with the race detector
 make cross      # dist/ binaries for linux, macos, and windows
 ```
 
-
-Or without make:
+`make cross` covers `linux/amd64`, `linux/arm64`, `darwin/amd64`,
+`darwin/arm64`, and `windows/amd64`. Or without make:
 
 ```sh
 go build -o alpaca ./cmd/alpaca
-GOOS=linux GOARCH=amd64 go build -o alpaca-linux ./cmd/alpaca
+GOOS=linux GOARCH=arm64 go build -o alpaca-linux-arm64 ./cmd/alpaca
 ```
 
 There is no cgo and there are no runtime dependencies, so deploying to another
-machine means copying one file.
+machine — an arm64 Ubuntu box, a Raspberry Pi — means copying one file. To get
+the launcher entry as well, run `make` on that machine instead; it needs
+`librsvg2-bin` for the icon (`apt install librsvg2-bin`) and falls back to the
+SVG without it.
 
 ## Where things live
 
