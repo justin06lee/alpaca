@@ -338,45 +338,6 @@ Chats are saved automatically as JSON under `~/.config/alpaca/sessions/`.
 itself silently to an unrelated question — use `--resume` or `ctrl+s` to pick up
 where you left off.
 
-## The desktop app
-
-The same binary is also a desktop application. On macOS, `make` assembles
-**Alpaca.app** and puts it in `/Applications`; launch it from the Dock,
-Spotlight, or Finder and the chat opens as a window. On Linux — including
-arm64 Ubuntu — `make` installs an **Alpaca** launcher entry into your
-applications menu, wearing the same icon. Booted bare from a terminal,
-`alpaca` opens the TUI instead — one binary, and the way you start it picks
-the surface.
-
-The surface is chosen from the file descriptors, not the environment: a
-terminal on both stdin and stdout means the TUI, neither means the desktop
-window, and one of each is a shell pipeline that gets usage instead.
-
-`alpaca gui` is the explicit form (and works on any platform):
-
-```
-alpaca gui                open the window against your default server
-alpaca gui --demo         the window with canned replies, no server
-alpaca gui --no-open      print the address instead of opening the browser
-alpaca gui --port 8080    listen on a fixed port
-```
-
-The window is the binary serving a self-contained page on `127.0.0.1` — no
-Electron, no runtime, nothing to download, works offline. It shares the
-TUI's session store, so a chat started in the terminal continues in the
-window and vice versa, and it streams, renders markdown and code blocks with
-copy buttons, switches models, and browses saved chats.
-
-Two details worth knowing:
-
-- **It only answers its own window.** The server binds loopback and every
-  API call needs a token minted at launch and known only to the page it
-  served, so nothing else on the machine (or the network) can drive it.
-- **It puts itself away.** Launched from the Dock there is no terminal to
-  `ctrl+c`, so once the window closes and its heartbeat goes quiet for a
-  couple of minutes, the process exits on its own. Launched from a terminal
-  it stays up until you stop it.
-
 ## Commands
 
 ```
@@ -384,7 +345,6 @@ alpaca serve                  start the API and print a connect string
 alpaca link <connect-string>  save a server (also reads stdin)
 alpaca chat                   open the chat interface in the terminal
 alpaca chat --demo            open it with no server, using canned replies
-alpaca gui                    open the chat as a desktop window instead
 alpaca ask "question"         one-shot answer on stdout
 alpaca models                 list models on the server
 alpaca status                 show which servers are linked and reachable
@@ -404,7 +364,7 @@ Every command takes `--help`, and multiple servers are supported via `--profile`
 ## Building and installing
 
 ```sh
-make            # build, install onto your PATH — and Alpaca.app on macOS
+make            # build and install onto your PATH
 make build      # ./alpaca in the repo, nothing installed
 make install    # install the binary just built
 make update     # stop a running alpaca, replace everything installed fresh
@@ -440,10 +400,7 @@ GOOS=linux GOARCH=arm64 go build -o alpaca-linux-arm64 ./cmd/alpaca
 ```
 
 There is no cgo and there are no runtime dependencies, so deploying to another
-machine — an arm64 Ubuntu box, a Raspberry Pi — means copying one file. To get
-the launcher entry as well, run `make` on that machine instead; it needs
-`librsvg2-bin` for the icon (`apt install librsvg2-bin`) and falls back to the
-SVG without it.
+machine — an arm64 Ubuntu box, a Raspberry Pi — means copying one file.
 
 ## Where things live
 
