@@ -36,14 +36,14 @@
     <rect x="30" y="150" width="10" height="10" fill="#22222A"/>
     <rect x="60" y="260" width="10" height="10" fill="#22222A"/>
     <rect x="580" y="270" width="10" height="10" fill="#22222A"/>
-    <rect x="170" y="210" width="10" height="10" fill="#33241C"/>
-    <rect x="210" y="210" width="10" height="10" fill="#33241C"/>
-    <rect x="250" y="210" width="20" height="10" fill="#33241C"/>
-    <rect x="300" y="210" width="10" height="10" fill="#33241C"/>
-    <rect x="330" y="210" width="20" height="10" fill="#33241C"/>
-    <rect x="390" y="210" width="10" height="10" fill="#33241C"/>
-    <rect x="420" y="210" width="20" height="10" fill="#33241C"/>
-    <rect x="460" y="210" width="10" height="10" fill="#33241C"/>
+    <rect x="170" y="210" width="10" height="10" fill="#2E4A2B"/>
+    <rect x="210" y="210" width="10" height="10" fill="#2E4A2B"/>
+    <rect x="250" y="210" width="20" height="10" fill="#2E4A2B"/>
+    <rect x="300" y="210" width="10" height="10" fill="#2E4A2B"/>
+    <rect x="330" y="210" width="20" height="10" fill="#2E4A2B"/>
+    <rect x="390" y="210" width="10" height="10" fill="#2E4A2B"/>
+    <rect x="420" y="210" width="20" height="10" fill="#2E4A2B"/>
+    <rect x="460" y="210" width="10" height="10" fill="#2E4A2B"/>
     <rect x="230" y="50" width="10" height="10" fill="#C98A6B"/>
     <rect x="280" y="50" width="10" height="10" fill="#C98A6B"/>
     <rect x="230" y="60" width="20" height="10" fill="#C98A6B"/>
