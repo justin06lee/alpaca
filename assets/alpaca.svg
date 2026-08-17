@@ -1,127 +1,117 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 840 480" width="840" height="480" role="img" aria-label="alpaca — a door standing alone in a pasture, the alpaca leaning through it">
-  <title>alpaca</title>
-  <!-- Manga panel: flat black ink on a white page. A door stands alone in
-       the pasture — no wall, no building — and the same serene animal leans
-       out of it, light spilling past. Open it from any machine; it is
-       always the same door, and the same alpaca answers. -->
-
-  <defs>
-    <!-- Classic screentone: a coarse dot grid, never a gradient. -->
-    <pattern id="tone" width="11" height="11" patternUnits="userSpaceOnUse">
-      <circle cx="3" cy="3" r="1.7" fill="#000"/>
-    </pattern>
-    <clipPath id="panel">
-      <rect x="24" y="24" width="792" height="432"/>
-    </clipPath>
-  </defs>
-
-  <!-- The page -->
-  <rect x="0" y="0" width="840" height="480" fill="#fff"/>
-
-  <!-- Corner screentone -->
-  <g clip-path="url(#panel)">
-    <polygon points="24,24 270,24 24,128" fill="url(#tone)"/>
-    <polygon points="816,456 816,352 600,456" fill="url(#tone)"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 630 350" role="img" aria-label="alpaca">
+  <rect width="630" height="350" rx="12" fill="#0C0C0F"/>
+  <g shape-rendering="crispEdges">
+    <rect x="230" y="50" width="10" height="10" fill="#C98A6B"/>
+    <rect x="280" y="50" width="10" height="10" fill="#C98A6B"/>
+    <rect x="230" y="60" width="20" height="10" fill="#C98A6B"/>
+    <rect x="270" y="60" width="20" height="10" fill="#C98A6B"/>
+    <rect x="220" y="70" width="80" height="10" fill="#C98A6B"/>
+    <rect x="220" y="80" width="20" height="10" fill="#C98A6B"/>
+    <rect x="240" y="80" width="10" height="10" fill="#2A2118"/>
+    <rect x="250" y="80" width="20" height="10" fill="#C98A6B"/>
+    <rect x="270" y="80" width="10" height="10" fill="#2A2118"/>
+    <rect x="280" y="80" width="20" height="10" fill="#C98A6B"/>
+    <rect x="220" y="90" width="80" height="10" fill="#C98A6B"/>
+    <rect x="230" y="100" width="20" height="10" fill="#C98A6B"/>
+    <rect x="250" y="100" width="20" height="10" fill="#E4BA9B"/>
+    <rect x="270" y="100" width="20" height="10" fill="#C98A6B"/>
+    <rect x="240" y="110" width="40" height="10" fill="#C98A6B"/>
+    <rect x="250" y="120" width="30" height="10" fill="#C98A6B"/>
+    <rect x="250" y="130" width="30" height="10" fill="#C98A6B"/>
+    <rect x="260" y="140" width="30" height="10" fill="#C98A6B"/>
+    <rect x="260" y="150" width="100" height="10" fill="#C98A6B"/>
+    <rect x="250" y="160" width="130" height="10" fill="#C98A6B"/>
+    <rect x="250" y="170" width="130" height="10" fill="#C98A6B"/>
+    <rect x="260" y="180" width="110" height="10" fill="#C98A6B"/>
+    <rect x="260" y="190" width="20" height="10" fill="#C98A6B"/>
+    <rect x="290" y="190" width="20" height="10" fill="#C98A6B"/>
+    <rect x="320" y="190" width="20" height="10" fill="#C98A6B"/>
+    <rect x="350" y="190" width="20" height="10" fill="#C98A6B"/>
+    <rect x="260" y="200" width="20" height="10" fill="#6B4A38"/>
+    <rect x="290" y="200" width="20" height="10" fill="#6B4A38"/>
+    <rect x="320" y="200" width="20" height="10" fill="#6B4A38"/>
+    <rect x="350" y="200" width="20" height="10" fill="#6B4A38"/>
+    <rect x="120" y="220" width="30" height="10" fill="#E8A87C"/>
+    <rect x="180" y="220" width="10" height="10" fill="#E8A87C"/>
+    <rect x="250" y="220" width="40" height="10" fill="#E8A87C"/>
+    <rect x="330" y="220" width="30" height="10" fill="#E8A87C"/>
+    <rect x="400" y="220" width="30" height="10" fill="#E8A87C"/>
+    <rect x="470" y="220" width="30" height="10" fill="#E8A87C"/>
+    <rect x="110" y="230" width="10" height="10" fill="#E8A87C"/>
+    <rect x="130" y="230" width="20" height="10" fill="#7A4A35"/>
+    <rect x="150" y="230" width="10" height="10" fill="#E8A87C"/>
+    <rect x="180" y="230" width="10" height="10" fill="#E8A87C"/>
+    <rect x="190" y="230" width="10" height="10" fill="#7A4A35"/>
+    <rect x="250" y="230" width="10" height="10" fill="#E8A87C"/>
+    <rect x="260" y="230" width="30" height="10" fill="#7A4A35"/>
+    <rect x="290" y="230" width="10" height="10" fill="#E8A87C"/>
+    <rect x="320" y="230" width="10" height="10" fill="#E8A87C"/>
+    <rect x="340" y="230" width="20" height="10" fill="#7A4A35"/>
+    <rect x="360" y="230" width="10" height="10" fill="#E8A87C"/>
+    <rect x="390" y="230" width="10" height="10" fill="#E8A87C"/>
+    <rect x="410" y="230" width="20" height="10" fill="#7A4A35"/>
+    <rect x="430" y="230" width="10" height="10" fill="#E8A87C"/>
+    <rect x="460" y="230" width="10" height="10" fill="#E8A87C"/>
+    <rect x="480" y="230" width="20" height="10" fill="#7A4A35"/>
+    <rect x="500" y="230" width="10" height="10" fill="#E8A87C"/>
+    <rect x="110" y="240" width="50" height="10" fill="#E8A87C"/>
+    <rect x="160" y="240" width="10" height="10" fill="#7A4A35"/>
+    <rect x="180" y="240" width="10" height="10" fill="#E8A87C"/>
+    <rect x="190" y="240" width="10" height="10" fill="#7A4A35"/>
+    <rect x="250" y="240" width="40" height="10" fill="#E8A87C"/>
+    <rect x="300" y="240" width="10" height="10" fill="#7A4A35"/>
+    <rect x="320" y="240" width="50" height="10" fill="#E8A87C"/>
+    <rect x="370" y="240" width="10" height="10" fill="#7A4A35"/>
+    <rect x="390" y="240" width="10" height="10" fill="#E8A87C"/>
+    <rect x="400" y="240" width="10" height="10" fill="#7A4A35"/>
+    <rect x="440" y="240" width="10" height="10" fill="#7A4A35"/>
+    <rect x="460" y="240" width="50" height="10" fill="#E8A87C"/>
+    <rect x="510" y="240" width="10" height="10" fill="#7A4A35"/>
+    <rect x="110" y="250" width="10" height="10" fill="#E8A87C"/>
+    <rect x="120" y="250" width="30" height="10" fill="#7A4A35"/>
+    <rect x="150" y="250" width="10" height="10" fill="#E8A87C"/>
+    <rect x="160" y="250" width="10" height="10" fill="#7A4A35"/>
+    <rect x="180" y="250" width="10" height="10" fill="#E8A87C"/>
+    <rect x="190" y="250" width="10" height="10" fill="#7A4A35"/>
+    <rect x="250" y="250" width="10" height="10" fill="#E8A87C"/>
+    <rect x="260" y="250" width="40" height="10" fill="#7A4A35"/>
+    <rect x="320" y="250" width="10" height="10" fill="#E8A87C"/>
+    <rect x="330" y="250" width="30" height="10" fill="#7A4A35"/>
+    <rect x="360" y="250" width="10" height="10" fill="#E8A87C"/>
+    <rect x="370" y="250" width="10" height="10" fill="#7A4A35"/>
+    <rect x="390" y="250" width="10" height="10" fill="#E8A87C"/>
+    <rect x="400" y="250" width="10" height="10" fill="#7A4A35"/>
+    <rect x="430" y="250" width="10" height="10" fill="#E8A87C"/>
+    <rect x="460" y="250" width="10" height="10" fill="#E8A87C"/>
+    <rect x="470" y="250" width="30" height="10" fill="#7A4A35"/>
+    <rect x="500" y="250" width="10" height="10" fill="#E8A87C"/>
+    <rect x="510" y="250" width="10" height="10" fill="#7A4A35"/>
+    <rect x="110" y="260" width="10" height="10" fill="#E8A87C"/>
+    <rect x="120" y="260" width="10" height="10" fill="#7A4A35"/>
+    <rect x="150" y="260" width="10" height="10" fill="#E8A87C"/>
+    <rect x="160" y="260" width="10" height="10" fill="#7A4A35"/>
+    <rect x="180" y="260" width="50" height="10" fill="#E8A87C"/>
+    <rect x="250" y="260" width="10" height="10" fill="#E8A87C"/>
+    <rect x="260" y="260" width="10" height="10" fill="#7A4A35"/>
+    <rect x="320" y="260" width="10" height="10" fill="#E8A87C"/>
+    <rect x="330" y="260" width="10" height="10" fill="#7A4A35"/>
+    <rect x="360" y="260" width="10" height="10" fill="#E8A87C"/>
+    <rect x="370" y="260" width="10" height="10" fill="#7A4A35"/>
+    <rect x="400" y="260" width="30" height="10" fill="#E8A87C"/>
+    <rect x="440" y="260" width="10" height="10" fill="#7A4A35"/>
+    <rect x="460" y="260" width="10" height="10" fill="#E8A87C"/>
+    <rect x="470" y="260" width="10" height="10" fill="#7A4A35"/>
+    <rect x="500" y="260" width="10" height="10" fill="#E8A87C"/>
+    <rect x="510" y="260" width="10" height="10" fill="#7A4A35"/>
+    <rect x="120" y="270" width="10" height="10" fill="#7A4A35"/>
+    <rect x="160" y="270" width="10" height="10" fill="#7A4A35"/>
+    <rect x="190" y="270" width="50" height="10" fill="#7A4A35"/>
+    <rect x="260" y="270" width="10" height="10" fill="#7A4A35"/>
+    <rect x="330" y="270" width="10" height="10" fill="#7A4A35"/>
+    <rect x="370" y="270" width="10" height="10" fill="#7A4A35"/>
+    <rect x="410" y="270" width="30" height="10" fill="#7A4A35"/>
+    <rect x="470" y="270" width="10" height="10" fill="#7A4A35"/>
+    <rect x="510" y="270" width="10" height="10" fill="#7A4A35"/>
   </g>
-
-  <!-- The pasture: a near hill and a far one -->
-  <g fill="none" stroke="#000" stroke-linecap="round">
-    <path d="M 24 356 C 160 342 340 360 520 350 C 640 344 740 350 816 354" stroke-width="3.5"/>
-    <path d="M 590 332 C 650 314 726 314 788 332" stroke-width="3"/>
-  </g>
-
-  <!-- Light spilling from the doorway, past the animal -->
-  <g fill="#000" clip-path="url(#panel)">
-    <polygon points="466.2,117.4 457.3,113.0 580.1,-127.5"/>
-    <polygon points="488.9,152.0 483.7,147.3 743.9,-136.4"/>
-    <polygon points="523.7,171.1 517.0,161.1 910.0,-96.7"/>
-    <polygon points="518.6,206.7 516.1,200.1 862.8,70.8"/>
-    <polygon points="539.8,230.2 537.8,219.4 1085.4,128.4"/>
-    <polygon points="526.0,253.5 526.0,246.5 956.0,250.0"/>
-    <polygon points="540.7,281.6 542.8,269.8 1085.4,371.6"/>
-    <polygon points="517.1,302.7 519.7,296.2 859.6,437.3"/>
-    <polygon points="514.1,342.6 520.6,333.7 881.4,602.7"/>
-    <polygon points="480.1,355.7 485.5,351.2 704.5,617.7"/>
-    <polygon points="457.3,387.0 466.2,382.6 571.3,609.5"/>
-  </g>
-
-  <!-- The shadow everything came through onto -->
-  <ellipse cx="420" cy="414" rx="170" ry="12" fill="url(#tone)"/>
-
-  <!-- The door: a frame with nothing around it, leaf swung wide -->
-  <g stroke="#000" stroke-linejoin="round">
-    <!-- open leaf, toned, still swinging -->
-    <path d="M 246 116 L 140 132 L 140 412 L 246 388 Z" fill="#fff" stroke-width="5"/>
-    <path d="M 246 116 L 140 132 L 140 412 L 246 388 Z" fill="url(#tone)" stroke="none"/>
-    <circle cx="160" cy="272" r="6" fill="#000" stroke="none"/>
-    <!-- the frame itself -->
-    <path d="M 246 112 L 414 112 L 414 390 L 396 390 L 396 130 L 264 130 L 264 390 L 246 390 Z"
-          fill="#fff" stroke-width="5"/>
-  </g>
-  <!-- motion arcs off the leaf's edge -->
-  <g fill="none" stroke="#000" stroke-width="3" stroke-linecap="round">
-    <path d="M 124 170 q -16 100 4 216"/>
-    <path d="M 106 226 q -8 56 4 116"/>
-  </g>
-
-  <!-- The animal, leaning out of somewhere else entirely -->
-  <path fill="#fff" stroke="#000" stroke-width="6" stroke-linejoin="round" d="
-    M 306 388
-    C 322 318 348 266 380 234
-    C 386 214 396 200 412 194
-    C 412 180 426 172 436 178
-    C 440 164 458 164 464 176
-    C 478 172 488 182 484 194
-    C 496 200 504 212 506 224
-    C 518 226 526 234 524 244
-    C 522 254 512 258 502 256
-    C 490 262 476 262 466 256
-    C 450 274 428 320 420 388
-    Z"/>
-
-  <!-- Ears above the topknot -->
-  <g fill="#fff" stroke="#000" stroke-width="5" stroke-linejoin="round">
-    <path d="M 420 186 C 414 166 418 152 426 146 C 434 152 436 168 432 182 Z"/>
-    <path d="M 462 178 C 462 158 468 144 476 140 C 484 148 482 164 476 176 Z"/>
-  </g>
-
-  <!-- One brave leg already through -->
-  <g fill="#fff" stroke="#000" stroke-width="5" stroke-linejoin="round">
-    <path d="M 418 384 L 416 424 L 438 424 L 440 384 Z"/>
-    <path d="M 446 424 C 444 414 454 408 462 413 C 466 405 478 406 480 414 C 488 412 492 420 486 424 Z"/>
-  </g>
-
-  <!-- The face: both eyes closed and happy, unbothered as ever -->
-  <g fill="none" stroke="#000" stroke-linecap="round">
-    <path d="M 440 216 q 6 -7 13 -1" stroke-width="4"/>
-    <path d="M 478 220 q 7 -7 14 0" stroke-width="4"/>
-    <path d="M 512 236 l 4 3" stroke-width="3.5"/>
-    <path d="M 505 248 q 6 5 12 0" stroke-width="3.5"/>
-    <path d="M 464 242 l 8 -6" stroke-width="3"/>
-    <path d="M 470 248 l 8 -6" stroke-width="3"/>
-  </g>
-
-  <!-- Grass, so the nowhere reads as a pasture -->
-  <g fill="none" stroke="#000" stroke-width="3" stroke-linecap="round">
-    <path d="M 96 398 q 3 -12 7 0 q 3 -9 7 0"/>
-    <path d="M 205 386 q 3 -11 7 0 q 3 -8 7 0"/>
-    <path d="M 556 400 q 3 -12 7 0 q 3 -9 7 0"/>
-    <path d="M 700 390 q 3 -11 7 0 q 3 -8 7 0"/>
-    <path d="M 178 428 q 3 -12 7 0 q 3 -9 7 0"/>
-  </g>
-
-  <!-- Sparkles left hanging in the light -->
-  <g fill="#fff" stroke="#000" stroke-width="3" stroke-linejoin="round">
-    <path d="M 548 128 L 551 137 L 560 140 L 551 143 L 548 152 L 545 143 L 536 140 L 545 137 Z"/>
-    <path d="M 592 306 L 594 313 L 601 315 L 594 317 L 592 324 L 590 317 L 583 315 L 590 313 Z"/>
-    <path d="M 204 84 L 206 91 L 213 93 L 206 95 L 204 102 L 202 95 L 195 93 L 202 91 Z"/>
-  </g>
-
-  <!-- Caption box with the wordmark -->
-  <rect x="610" y="386" width="216" height="58" fill="#fff" stroke="#000" stroke-width="6"/>
-  <text x="630" y="428" font-family="ui-monospace, 'Cascadia Mono', 'Courier New', monospace" font-size="42" font-weight="800" letter-spacing="2" fill="#000">alpaca</text>
-
-  <!-- The panel frame: a heavy outer rule and a fine inner one -->
-  <rect x="10" y="10" width="820" height="460" fill="none" stroke="#000" stroke-width="8"/>
-  <rect x="24" y="24" width="792" height="432" fill="none" stroke="#000" stroke-width="2.5"/>
+  <text x="315" y="318" text-anchor="middle" font-family="ui-monospace,'SF Mono',Menlo,Monaco,monospace" font-size="15" letter-spacing="3" fill="#62626B">serve · link · chat</text>
 </svg>
