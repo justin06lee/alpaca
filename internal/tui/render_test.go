@@ -304,7 +304,7 @@ func TestUserBubbleKeepsShortMessagesOnOneLine(t *testing.T) {
 	m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
 
 	for _, prompt := range []string{"oh interesting", "hi", "what's the weather like"} {
-		bubble := m.renderMessage(client.Message{Role: client.RoleUser, Content: prompt})
+		bubble := m.renderMessage(0, client.Message{Role: client.RoleUser, Content: prompt})
 		rows := 0
 		for _, l := range strings.Split(bubble, "\n") {
 			if strings.Contains(l, "│") {

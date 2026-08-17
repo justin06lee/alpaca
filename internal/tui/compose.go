@@ -168,7 +168,9 @@ func (m *Model) syncInput() {
 // renderComposer frames the input, or a stop hint while the model is talking.
 func (m *Model) renderComposer(width int) string {
 	frame := styleComposer
-	if !m.streaming {
+	if m.editFrom >= 0 {
+		frame = styleComposerEditing
+	} else if !m.streaming {
 		frame = styleComposerActive
 	}
 	// The border eats two columns and the padding two more, so the text gets

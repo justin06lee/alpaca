@@ -29,8 +29,18 @@ func (m *Model) send() tea.Cmd {
 	}
 
 	// The composer only makes its journey once: on the message that turns an
-	// empty screen into a conversation.
-	firstMessage := m.sess.Empty()
+	// empty screen into a conversation. A branch of the first message is not
+	// that — the composer is already docked.
+	firstMessage := m.sess.Empty() && m.editFrom < 0
+
+	if m.editFrom >= 0 {
+		// The edit becomes a sibling of the original: the old continuation
+		// stays in the tree, and the transcript is cut back to the fork.
+		if m.sess.Rebase(m.editFrom) {
+			m.rebuildCache()
+		}
+		m.editFrom = -1
+	}
 
 	m.input.Reset()
 	m.sess.Append(client.Message{Role: client.RoleUser, Content: m.composeOutgoing(text)})
@@ -77,6 +87,7 @@ func (m *Model) newSession() tea.Cmd {
 	m.sess = session.New(model, m.profileName)
 	m.sess.System = system
 
+	m.editFrom = -1
 	m.rendered = m.rendered[:0]
 	m.lastUsage = nil
 	m.lastElapsed = 0
@@ -173,6 +184,7 @@ func (m *Model) choosePicked() tea.Cmd {
 			return m.setStatus("could not open that chat: "+err.Error(), true)
 		}
 		m.sess = loaded
+		m.editFrom = -1
 		m.lastUsage = nil
 		m.lastElapsed = 0
 		m.rebuildCache()
@@ -213,6 +225,7 @@ func (m *Model) retry() tea.Cmd {
 	if _, ok := m.sess.DropAfterLastUser(); !ok {
 		return m.setStatus("nothing to retry yet", false)
 	}
+	m.editFrom = -1
 	m.rebuildCache()
 	m.refreshViewport(true)
 	return m.startStream()

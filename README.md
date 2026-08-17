@@ -269,6 +269,19 @@ Long sent messages fold in their bubble (`… +26 more lines`); click any of
 your bubbles to read the whole message in a scrollable popup, `y` to copy it,
 `esc` to close.
 
+### Editing and branching
+
+Click one of your bubbles and press `e`: the prompt comes back into the
+composer — the frame turns yellow while the edit is armed — and sending it
+branches the conversation at that point. The old continuation is kept, not
+overwritten. A branched prompt wears a yellow `✦ ‹ 2/2 ›` marker under its
+bubble; click it again and `←`/`→` swap the whole tail of the conversation
+between variants, with nested branches resuming exactly where you left them.
+`esc` abandons an armed edit without touching anything.
+
+Branches persist in the session file with the rest of the chat. Regenerating
+a reply (`ctrl+r`) still replaces it in place — only editing a prompt forks.
+
 Drag with the mouse to select text — in the chat, the composer, even inside a
 popup. The highlight follows the drag, and releasing the button copies the
 selection to the clipboard, exactly as it appears on screen. A keypress,

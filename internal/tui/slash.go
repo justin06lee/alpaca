@@ -114,8 +114,8 @@ func (m *Model) clearMessages() tea.Cmd {
 	if m.streaming {
 		m.stopStream()
 	}
-	m.sess.Messages = nil
-	m.sess.Title = ""
+	m.sess.Clear()
+	m.editFrom = -1
 	m.rendered = m.rendered[:0]
 	m.lastUsage = nil
 	m.lastElapsed = 0
