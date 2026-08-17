@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="assets/alpaca.svg" alt="alpaca" width="330" />
+<img src="assets/alpaca.svg" alt="alpaca" width="460" />
 
 # alpaca
 

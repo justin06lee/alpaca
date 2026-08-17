@@ -1,9 +1,9 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 420" width="900" height="420" role="img" aria-label="alpaca — an alpaca appears in a manga summoning panel">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 840 480" width="840" height="480" role="img" aria-label="alpaca — a door standing alone in a pasture, the alpaca leaning through it">
   <title>alpaca</title>
-  <!-- Manga panel: flat black ink on a white page. The summons lands — a
-       radial burst, a poof at the feet — and the same serene animal is
-       simply there, whichever machine called it. Link once, and it answers
-       from anywhere. -->
+  <!-- Manga panel: flat black ink on a white page. A door stands alone in
+       the pasture — no wall, no building — and the same serene animal leans
+       out of it, light spilling past. Open it from any machine; it is
+       always the same door, and the same alpaca answers. -->
 
   <defs>
     <!-- Classic screentone: a coarse dot grid, never a gradient. -->
@@ -11,114 +11,117 @@
       <circle cx="3" cy="3" r="1.7" fill="#000"/>
     </pattern>
     <clipPath id="panel">
-      <rect x="24" y="24" width="852" height="372"/>
+      <rect x="24" y="24" width="792" height="432"/>
     </clipPath>
   </defs>
 
   <!-- The page -->
-  <rect x="0" y="0" width="900" height="420" fill="#fff"/>
-
-  <!-- The appearance burst: tapered speed lines converging on the animal -->
-  <g fill="#000" clip-path="url(#panel)">
-    <polygon points="1253.1,244.1 1253.8,235.2 804.5,208.3"/>
-    <polygon points="1222.7,395.6 1224.6,389.9 814.7,259.9"/>
-    <polygon points="1142.8,557.0 1148.4,548.7 801.5,320.8"/>
-    <polygon points="1006.7,701.2 1011.4,697.5 738.1,352.6"/>
-    <polygon points="850.6,790.1 858.9,786.7 695.5,394.3"/>
-    <polygon points="657.2,833.6 662.1,833.3 628.6,389.5"/>
-    <polygon points="477.5,820.1 486.3,822.0 571.3,400.4"/>
-    <polygon points="311.9,758.7 317.2,761.5 525.8,362.8"/>
-    <polygon points="151.1,636.0 158.1,643.2 460.3,344.4"/>
-    <polygon points="48.5,492.8 51.3,498.1 442.8,286.5"/>
-    <polygon points="-7.1,345.5 -4.9,354.2 396.7,249.4"/>
-    <polygon points="-24.7,214.8 -24.5,219.8 410.1,202.2"/>
-    <polygon points="-10.1,57.5 -12.0,66.3 429.2,155.5"/>
-    <polygon points="51.3,-108.1 48.5,-102.8 425.2,94.1"/>
-    <polygon points="174.0,-268.9 166.8,-261.9 476.1,51.1"/>
-    <polygon points="337.1,-381.5 331.7,-378.9 518.6,-2.7"/>
-    <polygon points="530.4,-439.4 521.5,-438.1 587.9,1.9"/>
-    <polygon points="728.6,-434.8 723.7,-435.7 651.5,-11.8"/>
-    <polygon points="919.9,-367.7 911.0,-372.4 720.6,-3.7"/>
-    <polygon points="1077.5,-247.4 1073.3,-251.7 758.9,56.1"/>
-    <polygon points="1182.2,-101.5 1178.0,-109.4 804.8,94.1"/>
-    <polygon points="1236.6,42.6 1235.4,37.7 802.3,148.3"/>
-  </g>
+  <rect x="0" y="0" width="840" height="480" fill="#fff"/>
 
   <!-- Corner screentone -->
   <g clip-path="url(#panel)">
-    <polygon points="24,24 320,24 24,140" fill="url(#tone)"/>
-    <polygon points="876,396 876,280 580,396" fill="url(#tone)"/>
+    <polygon points="24,24 270,24 24,128" fill="url(#tone)"/>
+    <polygon points="816,456 816,352 600,456" fill="url(#tone)"/>
   </g>
 
-  <!-- Ground, and the cast shadow the animal arrived with -->
-  <line x1="344" y1="352" x2="858" y2="352" stroke="#000" stroke-width="6" stroke-linecap="round"/>
-  <ellipse cx="680" cy="352" rx="140" ry="10" fill="url(#tone)"/>
-
-  <!-- The poof of the landing -->
-  <g fill="#fff" stroke="#000" stroke-width="5" stroke-linejoin="round">
-    <path d="M 508 352 C 500 334 518 322 534 330 C 538 314 562 312 572 326 C 586 314 606 320 606 336 C 620 332 632 342 624 352 Z"/>
-    <path d="M 776 352 C 772 338 786 330 798 336 C 802 324 822 324 828 336 C 840 332 850 342 842 352 Z"/>
-    <circle cx="486" cy="302" r="9"/>
-    <circle cx="856" cy="300" r="7"/>
+  <!-- The pasture: a near hill and a far one -->
+  <g fill="none" stroke="#000" stroke-linecap="round">
+    <path d="M 24 356 C 160 342 340 360 520 350 C 640 344 740 350 816 354" stroke-width="3.5"/>
+    <path d="M 590 332 C 650 314 726 314 788 332" stroke-width="3"/>
   </g>
 
-  <!-- The far pair of legs -->
-  <g fill="#fff" stroke="#000" stroke-width="5" stroke-linejoin="round">
-    <path d="M 670 300 L 666 350 L 690 350 L 692 300 Z"/>
-    <path d="M 754 296 L 750 350 L 774 350 L 776 296 Z"/>
+  <!-- Light spilling from the doorway, past the animal -->
+  <g fill="#000" clip-path="url(#panel)">
+    <polygon points="466.2,117.4 457.3,113.0 580.1,-127.5"/>
+    <polygon points="488.9,152.0 483.7,147.3 743.9,-136.4"/>
+    <polygon points="523.7,171.1 517.0,161.1 910.0,-96.7"/>
+    <polygon points="518.6,206.7 516.1,200.1 862.8,70.8"/>
+    <polygon points="539.8,230.2 537.8,219.4 1085.4,128.4"/>
+    <polygon points="526.0,253.5 526.0,246.5 956.0,250.0"/>
+    <polygon points="540.7,281.6 542.8,269.8 1085.4,371.6"/>
+    <polygon points="517.1,302.7 519.7,296.2 859.6,437.3"/>
+    <polygon points="514.1,342.6 520.6,333.7 881.4,602.7"/>
+    <polygon points="480.1,355.7 485.5,351.2 704.5,617.7"/>
+    <polygon points="457.3,387.0 466.2,382.6 571.3,609.5"/>
   </g>
 
-  <!-- The animal, serene about the whole thing -->
+  <!-- The shadow everything came through onto -->
+  <ellipse cx="420" cy="414" rx="170" ry="12" fill="url(#tone)"/>
+
+  <!-- The door: a frame with nothing around it, leaf swung wide -->
+  <g stroke="#000" stroke-linejoin="round">
+    <!-- open leaf, toned, still swinging -->
+    <path d="M 246 116 L 140 132 L 140 412 L 246 388 Z" fill="#fff" stroke-width="5"/>
+    <path d="M 246 116 L 140 132 L 140 412 L 246 388 Z" fill="url(#tone)" stroke="none"/>
+    <circle cx="160" cy="272" r="6" fill="#000" stroke="none"/>
+    <!-- the frame itself -->
+    <path d="M 246 112 L 414 112 L 414 390 L 396 390 L 396 130 L 264 130 L 264 390 L 246 390 Z"
+          fill="#fff" stroke-width="5"/>
+  </g>
+  <!-- motion arcs off the leaf's edge -->
+  <g fill="none" stroke="#000" stroke-width="3" stroke-linecap="round">
+    <path d="M 124 170 q -16 100 4 216"/>
+    <path d="M 106 226 q -8 56 4 116"/>
+  </g>
+
+  <!-- The animal, leaning out of somewhere else entirely -->
   <path fill="#fff" stroke="#000" stroke-width="6" stroke-linejoin="round" d="
-    M 474 112
-    C 472 96 482 86 498 82
-    C 496 68 510 60 522 64
-    C 526 50 546 50 552 62
-    C 566 58 578 66 576 80
-    C 586 86 590 98 584 110
-    C 604 146 622 186 634 216
-    C 646 206 662 204 672 212
-    C 686 200 706 200 716 212
-    C 730 204 746 210 750 222
-    C 766 214 780 224 776 240
-    C 788 248 784 264 770 266
-    C 776 284 770 298 760 306
-    L 756 348 L 730 348 L 734 308
-    C 714 314 692 316 674 312
-    L 670 348 L 644 348 L 648 306
-    C 622 298 608 276 602 254
-    C 588 216 570 168 548 138
-    C 536 130 520 130 508 134
-    C 492 136 478 130 474 122
+    M 306 388
+    C 322 318 348 266 380 234
+    C 386 214 396 200 412 194
+    C 412 180 426 172 436 178
+    C 440 164 458 164 464 176
+    C 478 172 488 182 484 194
+    C 496 200 504 212 506 224
+    C 518 226 526 234 524 244
+    C 522 254 512 258 502 256
+    C 490 262 476 262 466 256
+    C 450 274 428 320 420 388
     Z"/>
 
   <!-- Ears above the topknot -->
   <g fill="#fff" stroke="#000" stroke-width="5" stroke-linejoin="round">
-    <path d="M 508 68 C 502 46 506 30 514 22 C 522 28 524 46 520 64 Z"/>
-    <path d="M 546 64 C 544 42 550 26 558 20 C 566 28 564 46 558 62 Z"/>
+    <path d="M 420 186 C 414 166 418 152 426 146 C 434 152 436 168 432 182 Z"/>
+    <path d="M 462 178 C 462 158 468 144 476 140 C 484 148 482 164 476 176 Z"/>
   </g>
 
-  <!-- The face: closed eye, small nose, unbothered mouth, blush hatching -->
+  <!-- One brave leg already through -->
+  <g fill="#fff" stroke="#000" stroke-width="5" stroke-linejoin="round">
+    <path d="M 418 384 L 416 424 L 438 424 L 440 384 Z"/>
+    <path d="M 446 424 C 444 414 454 408 462 413 C 466 405 478 406 480 414 C 488 412 492 420 486 424 Z"/>
+  </g>
+
+  <!-- The face: both eyes closed and happy, unbothered as ever -->
   <g fill="none" stroke="#000" stroke-linecap="round">
-    <path d="M 494 104 q 9 8 20 2" stroke-width="4"/>
-    <path d="M 478 116 l 5 3" stroke-width="3.5"/>
-    <path d="M 481 127 q 5 5 11 1" stroke-width="3.5"/>
-    <path d="M 520 118 l 9 -7" stroke-width="3"/>
-    <path d="M 527 123 l 9 -7" stroke-width="3"/>
+    <path d="M 440 216 q 6 -7 13 -1" stroke-width="4"/>
+    <path d="M 478 220 q 7 -7 14 0" stroke-width="4"/>
+    <path d="M 512 236 l 4 3" stroke-width="3.5"/>
+    <path d="M 505 248 q 6 5 12 0" stroke-width="3.5"/>
+    <path d="M 464 242 l 8 -6" stroke-width="3"/>
+    <path d="M 470 248 l 8 -6" stroke-width="3"/>
   </g>
 
-  <!-- Sparkles left over from the summons -->
+  <!-- Grass, so the nowhere reads as a pasture -->
+  <g fill="none" stroke="#000" stroke-width="3" stroke-linecap="round">
+    <path d="M 96 398 q 3 -12 7 0 q 3 -9 7 0"/>
+    <path d="M 205 386 q 3 -11 7 0 q 3 -8 7 0"/>
+    <path d="M 556 400 q 3 -12 7 0 q 3 -9 7 0"/>
+    <path d="M 700 390 q 3 -11 7 0 q 3 -8 7 0"/>
+    <path d="M 178 428 q 3 -12 7 0 q 3 -9 7 0"/>
+  </g>
+
+  <!-- Sparkles left hanging in the light -->
   <g fill="#fff" stroke="#000" stroke-width="3" stroke-linejoin="round">
-    <path d="M 420 128 L 423 137 L 432 140 L 423 143 L 420 152 L 417 143 L 408 140 L 417 137 Z"/>
-    <path d="M 828 108 L 831 117 L 840 120 L 831 123 L 828 132 L 825 123 L 816 120 L 825 117 Z"/>
-    <path d="M 392 298 L 394 305 L 401 307 L 394 309 L 392 316 L 390 309 L 383 307 L 390 305 Z"/>
+    <path d="M 548 128 L 551 137 L 560 140 L 551 143 L 548 152 L 545 143 L 536 140 L 545 137 Z"/>
+    <path d="M 592 306 L 594 313 L 601 315 L 594 317 L 592 324 L 590 317 L 583 315 L 590 313 Z"/>
+    <path d="M 204 84 L 206 91 L 213 93 L 206 95 L 204 102 L 202 95 L 195 93 L 202 91 Z"/>
   </g>
 
   <!-- Caption box with the wordmark -->
-  <rect x="44" y="312" width="286" height="74" fill="#fff" stroke="#000" stroke-width="6"/>
-  <text x="66" y="366" font-family="ui-monospace, 'Cascadia Mono', 'Courier New', monospace" font-size="54" font-weight="800" letter-spacing="2" fill="#000">alpaca</text>
+  <rect x="610" y="386" width="216" height="58" fill="#fff" stroke="#000" stroke-width="6"/>
+  <text x="630" y="428" font-family="ui-monospace, 'Cascadia Mono', 'Courier New', monospace" font-size="42" font-weight="800" letter-spacing="2" fill="#000">alpaca</text>
 
   <!-- The panel frame: a heavy outer rule and a fine inner one -->
-  <rect x="10" y="10" width="880" height="400" fill="none" stroke="#000" stroke-width="9"/>
-  <rect x="24" y="24" width="852" height="372" fill="none" stroke="#000" stroke-width="2.5"/>
+  <rect x="10" y="10" width="820" height="460" fill="none" stroke="#000" stroke-width="8"/>
+  <rect x="24" y="24" width="792" height="432" fill="none" stroke="#000" stroke-width="2.5"/>
 </svg>
