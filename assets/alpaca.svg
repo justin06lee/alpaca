@@ -14,7 +14,7 @@
       }
     }
   </style>
-  <rect width="630" height="350" rx="12" fill="#0C0C0F"/>
+  <rect width="630" height="350" fill="#0C0C0F"/>
   <g shape-rendering="crispEdges">
     <rect x="230" y="50" width="10" height="10" fill="#C98A6B"/>
     <rect x="280" y="50" width="10" height="10" fill="#C98A6B"/>
