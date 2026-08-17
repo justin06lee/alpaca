@@ -22,14 +22,12 @@ const composerRows = composerMinRows + 2
 // register as motion, short enough that the reply never waits on it.
 const slideDuration = 400 * time.Millisecond
 
-// alpacaHead is just the face from the splash sprite, sized for the header:
-// three terminal rows of half blocks. Same colour keys as the splash.
+// alpacaHead is just the face, trimmed to two terminal rows of half blocks so
+// the header stays modest. Same colour keys as the splash.
 var alpacaHead = []string{
 	".W....W.",
-	".WW..WW.",
 	"WWWWWWWW",
 	"WWEWWEWW",
-	"WWWWWWWW",
 	".WWMMWW.",
 }
 

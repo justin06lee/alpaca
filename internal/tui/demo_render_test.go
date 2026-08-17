@@ -32,7 +32,7 @@ func TestDemoModeRendersAConversation(t *testing.T) {
 	sess := session.New("llama3.2:latest", "demo")
 
 	m := New(Connected(c), store, profiles, "demo", sess)
-	m.Update(tea.WindowSizeMsg{Width: 92, Height: 30})
+	m.Update(tea.WindowSizeMsg{Width: 92, Height: 32})
 	finishSplash(t, m, c)
 
 	// Empty state is the first thing anyone sees.

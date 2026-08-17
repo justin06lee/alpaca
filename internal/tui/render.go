@@ -351,42 +351,38 @@ func (m *Model) cacheLast() {
 	m.rendered = append(m.rendered, m.renderMessage(idx, m.sess.Messages[idx]))
 }
 
-// header renders the top bar: the animal's face on the left, and — who we are
-// talking to and how we got there — on the right.
+// header renders the top of the screen: the route meta pinned to the very
+// top-right corner, then the animal's face — padded down and in, unlike the
+// meta, so it sits with the same air the rest of the interface gets.
 func (m *Model) header() string {
-	pad := strings.Repeat(" ", uiPadX)
-	rows := strings.Split(renderSprite(alpacaHead), "\n")
-	for i, row := range rows {
-		rows[i] = pad + row
-	}
-
-	if m.client == nil {
-		return strings.Join(rows, "\n")
-	}
-
-	route := m.client.Route()
-	var meta string
-	if route.Source == client.SourceDemo {
-		// No connection exists, so reporting a transport and a latency would be
-		// theatre. Say plainly what this is.
-		meta = fmt.Sprintf("%s · offline demo", m.sess.Model)
-	} else {
-		transport := "lan"
-		if route.TLS {
-			transport = "tls"
+	top := ""
+	if m.client != nil {
+		route := m.client.Route()
+		var meta string
+		if route.Source == client.SourceDemo {
+			// No connection exists, so reporting a transport and a latency
+			// would be theatre. Say plainly what this is.
+			meta = fmt.Sprintf("%s · offline demo", m.sess.Model)
+		} else {
+			transport := "lan"
+			if route.TLS {
+				transport = "tls"
+			}
+			meta = fmt.Sprintf("%s · %s · %s %s",
+				m.sess.Model, m.profileName, transport,
+				route.Latency.Round(time.Millisecond))
 		}
-		meta = fmt.Sprintf("%s · %s · %s %s",
-			m.sess.Model, m.profileName, transport,
-			route.Latency.Round(time.Millisecond))
+		right := styleHeaderMeta.Render(meta)
+		if gap := m.width - lipgloss.Width(right); gap >= 0 {
+			// Too narrow means the meta goes: the face is the identity.
+			top = strings.Repeat(" ", gap) + right
+		}
 	}
 
-	// The meta sits level with the middle of the face.
-	right := styleHeaderMeta.Render(meta)
-	mid := len(rows) / 2
-	gap := m.width - uiPadX - lipgloss.Width(rows[mid]) - lipgloss.Width(right)
-	if gap >= 1 {
-		// Too narrow for both means the face wins: the meta lives in /stats too.
-		rows[mid] += strings.Repeat(" ", gap) + right
+	pad := strings.Repeat(" ", uiPadX)
+	rows := []string{top, ""}
+	for _, row := range strings.Split(renderSprite(alpacaHead), "\n") {
+		rows = append(rows, pad+row)
 	}
 	return strings.Join(rows, "\n")
 }
