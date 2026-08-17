@@ -391,6 +391,31 @@ make test       # everything, with the race detector
 make cross      # dist/ binaries for linux, macos, and windows
 ```
 
+### Emacs
+
+`make emacs-install` (or `make emacs`) makes `M-x alpaca` work: it installs
+the binary, copies `emacs/alpaca.el` into your Emacs configuration under
+`site-lisp/alpaca/`, and appends a marked autoload block to your init file —
+exactly once, so re-running it is safe. Restart Emacs (or eval the new block)
+and:
+
+| Command | What it opens |
+| --- | --- |
+| `M-x alpaca` | the chat interface |
+| `M-x alpaca-demo` | the same interface with canned replies, no server |
+| `M-x alpaca-serve` | the server, in a buffer |
+
+The TUI runs unmodified in a terminal buffer: in
+[vterm](https://github.com/akermu/emacs-libvterm) when it is installed — the
+full experience, mouse and truecolor included — and in the built-in `term`
+otherwise, which is entirely usable but renders fewer colors and ignores the
+mouse. Calling a command again jumps to its running buffer; once the program
+has exited, it restarts it.
+
+`M-x customize-group RET alpaca` holds the knobs (`alpaca-program`,
+`alpaca-chat-arguments`, `alpaca-prefer-vterm`), and `make emacs-uninstall`
+removes both the package and the init block.
+
 Or without make:
 
 ```sh
