@@ -379,8 +379,12 @@ func (m *Model) header() string {
 		}
 	}
 
+	// The face starts on the row under the meta rather than leaving a blank
+	// between them: the two never collide — one hugs the right edge, the other
+	// the left — and the sprite's own top half-row of ears is empty, which
+	// already reads as the air above it.
 	pad := strings.Repeat(" ", uiPadX)
-	rows := []string{top, ""}
+	rows := []string{top}
 	for _, row := range strings.Split(renderSprite(alpacaHead), "\n") {
 		rows = append(rows, pad+row)
 	}
