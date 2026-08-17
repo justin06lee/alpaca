@@ -15,13 +15,30 @@ import (
 var version = ""
 
 func main() {
-	if len(os.Args) < 2 {
+	rest := os.Args[1:]
+	// Finder passes a -psn_… process serial on some macOS versions; it is
+	// launch plumbing, not a command.
+	if len(rest) > 0 && strings.HasPrefix(rest[0], "-psn") {
+		rest = rest[1:]
+	}
+
+	var command string
+	var args []string
+	switch {
+	case len(rest) > 0:
+		command, args = rest[0], rest[1:]
+	case isTerminal(os.Stdin) && isTerminal(os.Stdout):
+		// Booted bare from a terminal: the TUI is what that means.
+		command = "chat"
+	case os.Getenv("TERM") == "":
+		// No terminal anywhere in sight — double-clicked, Dock, Spotlight.
+		// That is the desktop launch, so it gets the window.
+		command = "gui"
+	default:
+		// A pipe or a script: neither surface is wanted; say how this works.
 		usage()
 		os.Exit(2)
 	}
-
-	command := os.Args[1]
-	args := os.Args[2:]
 
 	var err error
 	switch command {
@@ -29,6 +46,8 @@ func main() {
 		err = runServe(args)
 	case "chat":
 		err = runChat(args)
+	case "gui":
+		err = runGui(args)
 	case "link":
 		err = runLink(args)
 	case "ask":
@@ -89,8 +108,12 @@ ON THE MACHINE WITH THE MODEL
 
 ON EVERY OTHER MACHINE
   alpaca link <connect-string> save the server (paste what serve printed)
-  alpaca chat                  open the chat interface
+  alpaca chat                  open the chat interface in the terminal
+  alpaca gui                   open it as a desktop window instead
   alpaca ask "question"        one-shot answer, prints to stdout
+
+A bare "alpaca" opens chat in a terminal and gui everywhere else, which is
+what makes double-clicking Alpaca.app work.
 
 OTHER
   alpaca models                list models on the server

@@ -338,13 +338,47 @@ Chats are saved automatically as JSON under `~/.config/alpaca/sessions/`.
 itself silently to an unrelated question — use `--resume` or `ctrl+s` to pick up
 where you left off.
 
+## The desktop app
+
+The same binary is also a desktop application. On macOS, `make` assembles
+**Alpaca.app** and puts it in `/Applications`; launch it from the Dock,
+Spotlight, or Finder and the chat opens as a window. Booted bare from a
+terminal, `alpaca` opens the TUI instead — one binary, and the way you start
+it picks the surface.
+
+`alpaca gui` is the explicit form (and works on any platform):
+
+```
+alpaca gui                open the window against your default server
+alpaca gui --demo         the window with canned replies, no server
+alpaca gui --no-open      print the address instead of opening the browser
+alpaca gui --port 8080    listen on a fixed port
+```
+
+The window is the binary serving a self-contained page on `127.0.0.1` — no
+Electron, no runtime, nothing to download, works offline. It shares the
+TUI's session store, so a chat started in the terminal continues in the
+window and vice versa, and it streams, renders markdown and code blocks with
+copy buttons, switches models, and browses saved chats.
+
+Two details worth knowing:
+
+- **It only answers its own window.** The server binds loopback and every
+  API call needs a token minted at launch and known only to the page it
+  served, so nothing else on the machine (or the network) can drive it.
+- **It puts itself away.** Launched from the Dock there is no terminal to
+  `ctrl+c`, so once the window closes and its heartbeat goes quiet for a
+  couple of minutes, the process exits on its own. Launched from a terminal
+  it stays up until you stop it.
+
 ## Commands
 
 ```
 alpaca serve                  start the API and print a connect string
 alpaca link <connect-string>  save a server (also reads stdin)
-alpaca chat                   open the chat interface
+alpaca chat                   open the chat interface in the terminal
 alpaca chat --demo            open it with no server, using canned replies
+alpaca gui                    open the chat as a desktop window instead
 alpaca ask "question"         one-shot answer on stdout
 alpaca models                 list models on the server
 alpaca status                 show which servers are linked and reachable
@@ -364,10 +398,10 @@ Every command takes `--help`, and multiple servers are supported via `--profile`
 ## Building and installing
 
 ```sh
-make            # the whole path: build, then install onto your PATH
+make            # build, install onto your PATH — and Alpaca.app on macOS
 make build      # ./alpaca in the repo, nothing installed
-make install    # what `make` runs: install the binary just built
-make update     # stop a running alpaca, replace the installed binary fresh
+make install    # install the binary just built
+make update     # stop a running alpaca, replace everything installed fresh
 ```
 
 `make install` builds first and installs that binary, so what lands on your PATH
@@ -391,30 +425,6 @@ make test       # everything, with the race detector
 make cross      # dist/ binaries for linux, macos, and windows
 ```
 
-### Emacs
-
-`make emacs-install` (or `make emacs`) makes `M-x alpaca` work: it installs
-the binary, copies `emacs/alpaca.el` into your Emacs configuration under
-`site-lisp/alpaca/`, and appends a marked autoload block to your init file —
-exactly once, so re-running it is safe. Restart Emacs (or eval the new block)
-and:
-
-| Command | What it opens |
-| --- | --- |
-| `M-x alpaca` | the chat interface |
-| `M-x alpaca-demo` | the same interface with canned replies, no server |
-| `M-x alpaca-serve` | the server, in a buffer |
-
-The TUI runs unmodified in a terminal buffer: in
-[vterm](https://github.com/akermu/emacs-libvterm) when it is installed — the
-full experience, mouse and truecolor included — and in the built-in `term`
-otherwise, which is entirely usable but renders fewer colors and ignores the
-mouse. Calling a command again jumps to its running buffer; once the program
-has exited, it restarts it.
-
-`M-x customize-group RET alpaca` holds the knobs (`alpaca-program`,
-`alpaca-chat-arguments`, `alpaca-prefer-vterm`), and `make emacs-uninstall`
-removes both the package and the init block.
 
 Or without make:
 
