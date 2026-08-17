@@ -24,5 +24,11 @@
 	<string>public.app-category.developer-tools</string>
 	<key>NSHighResolutionCapable</key>
 	<true/>
+	<!-- The window is a browser tab, not an NSWindow: this process never checks
+	     in with the window server, and a regular app that fails to do so is
+	     reaped seconds after launch. Declaring it an agent is what lets the
+	     bundle live long enough to serve its page. -->
+	<key>LSUIElement</key>
+	<true/>
 </dict>
 </plist>

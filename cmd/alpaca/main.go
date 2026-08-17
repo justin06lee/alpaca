@@ -14,6 +14,29 @@ import (
 // version is overridden at build time with -ldflags "-X main.version=…".
 var version = ""
 
+// bareCommand picks the surface for a bare `alpaca`, from whether a terminal
+// is actually attached to each end. It returns "" when neither surface fits.
+//
+// The environment cannot be asked about this, however tempting TERM looks.
+// LaunchServices hands a bundled app whatever the login session holds, TERM
+// included, so a Finder launch read as a shell pipeline here and exited 2 into
+// a stdout nobody could see: the app appeared to die the instant it was
+// clicked. Only the file descriptors know whether a terminal is really there.
+func bareCommand(stdinTTY, stdoutTTY bool) string {
+	switch {
+	case stdinTTY && stdoutTTY:
+		// Booted bare from a terminal: the TUI is what that means.
+		return "chat"
+	case !stdinTTY && !stdoutTTY:
+		// Neither end is a terminal — double-clicked, Dock, Spotlight, a
+		// desktop launcher. That is the desktop launch, so it gets the window.
+		return "gui"
+	default:
+		// One end is a terminal and the other is not: a pipe or a redirect.
+		return ""
+	}
+}
+
 func main() {
 	rest := os.Args[1:]
 	// Finder passes a -psn_… process serial on some macOS versions; it is
@@ -24,18 +47,11 @@ func main() {
 
 	var command string
 	var args []string
-	switch {
-	case len(rest) > 0:
+	if len(rest) > 0 {
 		command, args = rest[0], rest[1:]
-	case isTerminal(os.Stdin) && isTerminal(os.Stdout):
-		// Booted bare from a terminal: the TUI is what that means.
-		command = "chat"
-	case os.Getenv("TERM") == "":
-		// No terminal anywhere in sight — double-clicked, Dock, Spotlight.
-		// That is the desktop launch, so it gets the window.
-		command = "gui"
-	default:
-		// A pipe or a script: neither surface is wanted; say how this works.
+	} else if command = bareCommand(isTerminal(os.Stdin), isTerminal(os.Stdout)); command == "" {
+		// A shell pipeline, where neither surface is wanted. Say how this
+		// works instead.
 		usage()
 		os.Exit(2)
 	}
