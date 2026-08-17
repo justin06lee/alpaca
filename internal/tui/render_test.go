@@ -75,8 +75,10 @@ func TestViewRendersEmptyState(t *testing.T) {
 	m := newRenderedModel(t)
 	view := stripANSI(m.View())
 
-	if !strings.Contains(view, "alpaca") {
-		t.Errorf("header missing:\n%s", view)
+	// The header is the animal's face in half blocks, not a wordmark.
+	header := strings.Join(strings.Split(view, "\n")[:headerHeight], "\n")
+	if !strings.ContainsAny(header, "▀▄█") {
+		t.Errorf("pixel head missing from header:\n%s", view)
 	}
 	// The animal sits above the greeting.
 	if !strings.ContainsAny(view, "▀▄█") {

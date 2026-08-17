@@ -351,12 +351,17 @@ func (m *Model) cacheLast() {
 	m.rendered = append(m.rendered, m.renderMessage(idx, m.sess.Messages[idx]))
 }
 
-// header renders the top bar: who we are talking to and how we got there.
+// header renders the top bar: the animal's face on the left, and — who we are
+// talking to and how we got there — on the right.
 func (m *Model) header() string {
-	left := styleHeader.Render("alpaca")
+	pad := strings.Repeat(" ", uiPadX)
+	rows := strings.Split(renderSprite(alpacaHead), "\n")
+	for i, row := range rows {
+		rows[i] = pad + row
+	}
 
 	if m.client == nil {
-		return left
+		return strings.Join(rows, "\n")
 	}
 
 	route := m.client.Route()
@@ -375,23 +380,27 @@ func (m *Model) header() string {
 			route.Latency.Round(time.Millisecond))
 	}
 
+	// The meta sits level with the middle of the face.
 	right := styleHeaderMeta.Render(meta)
-	gap := m.width - lipgloss.Width(left) - lipgloss.Width(right)
-	if gap < 1 {
-		// Too narrow for both: the model name matters more than the route.
-		return left
+	mid := len(rows) / 2
+	gap := m.width - uiPadX - lipgloss.Width(rows[mid]) - lipgloss.Width(right)
+	if gap >= 1 {
+		// Too narrow for both means the face wins: the meta lives in /stats too.
+		rows[mid] += strings.Repeat(" ", gap) + right
 	}
-	return left + strings.Repeat(" ", gap) + right
+	return strings.Join(rows, "\n")
 }
 
 // statusBar renders the bottom line: transient status, or token stats.
 func (m *Model) statusBar() string {
+	pad := strings.Repeat(" ", uiPadX)
+	avail := m.width - 2*uiPadX
 	if m.status != "" {
 		style := styleMuted
 		if m.statusErr {
 			style = styleError
 		}
-		return style.Render(truncate(m.status, m.width))
+		return pad + style.Render(truncate(m.status, avail))
 	}
 
 	var parts []string
@@ -413,16 +422,29 @@ func (m *Model) statusBar() string {
 		}
 	}
 
-	return truncate(strings.Join(parts, styleMuted.Render(" · ")), m.width)
+	return pad + truncate(strings.Join(parts, styleMuted.Render(" · ")), avail)
 }
 
-// contentWidth is the usable width inside the chat pane.
+// contentWidth is the usable width inside the chat pane, after the pane's
+// horizontal padding on both sides.
 func (m *Model) contentWidth() int {
-	w := m.width - 2
+	w := m.width - 2*uiPadX - 2
 	if w < 20 {
 		return 20
 	}
 	return w
+}
+
+// padLines indents every non-empty line by n columns.
+func padLines(s string, n int) string {
+	pad := strings.Repeat(" ", n)
+	lines := strings.Split(s, "\n")
+	for i, line := range lines {
+		if line != "" {
+			lines[i] = pad + line
+		}
+	}
+	return strings.Join(lines, "\n")
 }
 
 // truncate shortens a line to max cells. It must be ANSI-aware: status text

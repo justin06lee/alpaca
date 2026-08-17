@@ -279,11 +279,11 @@ func (m *Model) clickBubble(idx, x int) tea.Cmd {
 }
 
 // isCodeHeader recognises a rendered code block header, whichever label the
-// control is showing. Requiring the leading rule keeps a literal "⧉ copy"
-// inside someone's message from miscounting the blocks: transcript text never
-// starts a line with the rule character.
+// control is showing. Requiring the rule at exactly the pane padding keeps a
+// literal "⧉ copy" inside someone's message from miscounting the blocks:
+// transcript text always sits deeper than the pane's own left edge.
 func isCodeHeader(stripped string) bool {
-	if !strings.HasPrefix(stripped, "─") {
+	if !strings.HasPrefix(stripped, strings.Repeat(" ", uiPadX)+"─") {
 		return false
 	}
 	return strings.Contains(stripped, copyMarker) || strings.Contains(stripped, copiedMarker)

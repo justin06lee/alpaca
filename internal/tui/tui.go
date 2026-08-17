@@ -18,10 +18,17 @@ import (
 
 // Layout constants, in terminal rows.
 const (
-	headerHeight = 2 // title line plus a blank
+	headerHeight = 4 // three rows of the pixel head plus a blank
 	inputHeight  = composerMinRows
 	chromeHeight = headerHeight + inputHeight + 2
 )
+
+// uiPadX is the air between the terminal's edge and the interface: the header,
+// the transcript, the composer, and the status bar all keep this many columns
+// clear on both sides. The transcript's padding is baked into the viewport
+// content itself, so mouse hit-testing against paneLines and the on-screen
+// columns remain the same coordinate space.
+const uiPadX = 2
 
 // statusLifetime is how long a transient message stays on the status bar.
 const statusLifetime = 4 * time.Second
@@ -367,7 +374,7 @@ func (m *Model) refreshViewport(follow bool) {
 	// Only auto-scroll if the user was already at the bottom; yanking the view
 	// down while they are reading scrollback is infuriating.
 	atBottom := m.viewport.AtBottom()
-	content := m.conversation()
+	content := padLines(m.conversation(), uiPadX)
 	m.paneLines = strings.Split(content, "\n")
 	m.viewport.SetContent(content)
 	if follow && atBottom {
