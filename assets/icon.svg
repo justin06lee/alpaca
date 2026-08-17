@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024" role="img" aria-label="Alpaca app icon — an ink alpaca face on a white card">
+  <title>Alpaca</title>
+  <!-- The app icon: the same ink language as the README panels, reduced to
+       what survives at 16 px — a white rounded card, a bold border, and the
+       serene face. -->
+
+  <defs>
+    <pattern id="tone" width="26" height="26" patternUnits="userSpaceOnUse">
+      <circle cx="7" cy="7" r="4" fill="#000"/>
+    </pattern>
+    <clipPath id="card">
+      <rect x="76" y="76" width="872" height="872" rx="176"/>
+    </clipPath>
+  </defs>
+
+  <!-- The card -->
+  <rect x="32" y="32" width="960" height="960" rx="212" fill="#fff" stroke="#000" stroke-width="26"/>
+  <rect x="76" y="76" width="872" height="872" rx="176" fill="none" stroke="#000" stroke-width="8"/>
+
+  <!-- Corner screentone -->
+  <g clip-path="url(#card)">
+    <polygon points="76,76 420,76 76,420" fill="url(#tone)"/>
+    <polygon points="948,948 948,640 640,948" fill="url(#tone)"/>
+  </g>
+
+  <!-- Ears -->
+  <g fill="#fff" stroke="#000" stroke-width="22" stroke-linejoin="round">
+    <path d="M 352 372 C 322 292 330 226 366 196 C 404 220 416 292 402 360 Z"/>
+    <path d="M 672 372 C 702 292 694 226 658 196 C 620 220 608 292 622 360 Z"/>
+  </g>
+
+  <!-- The head -->
+  <circle cx="512" cy="560" r="252" fill="#fff" stroke="#000" stroke-width="24"/>
+
+  <!-- Topknot -->
+  <g fill="#fff" stroke="#000" stroke-width="22" stroke-linejoin="round">
+    <path d="M 398 352 C 388 306 416 276 452 286 C 458 244 514 234 538 268 C 566 240 618 254 620 296 C 656 296 674 330 660 362
+             C 616 330 566 314 512 314 C 458 314 410 330 398 352 Z"/>
+  </g>
+
+  <!-- The face: closed happy eyes, the ω mouth, blush -->
+  <g fill="none" stroke="#000" stroke-linecap="round">
+    <path d="M 400 560 q 28 -30 56 0" stroke-width="20"/>
+    <path d="M 568 560 q 28 -30 56 0" stroke-width="20"/>
+    <path d="M 512 610 l 0 34" stroke-width="14"/>
+    <path d="M 478 644 q 17 22 34 0 q 17 22 34 0" stroke-width="14"/>
+    <path d="M 366 626 l 30 -22" stroke-width="12"/>
+    <path d="M 388 646 l 30 -22" stroke-width="12"/>
+    <path d="M 628 604 l 30 22" stroke-width="12"/>
+    <path d="M 606 624 l 30 22" stroke-width="12"/>
+  </g>
+</svg>

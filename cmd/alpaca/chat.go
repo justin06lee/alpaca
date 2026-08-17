@@ -171,23 +171,11 @@ func runDemoChat(model string) error {
 	}
 	defer stop()
 
-	sandbox, err := os.MkdirTemp("", "alpaca-demo-*")
+	cleanup, err := demoSandbox()
 	if err != nil {
-		return fmt.Errorf("create demo sandbox: %w", err)
+		return err
 	}
-	defer os.RemoveAll(sandbox)
-
-	// ALPACA_HOME is what config.Dir honours, so pointing it at the sandbox
-	// redirects the session store without threading a path through the TUI.
-	previous, hadPrevious := os.LookupEnv("ALPACA_HOME")
-	os.Setenv("ALPACA_HOME", sandbox)
-	defer func() {
-		if hadPrevious {
-			os.Setenv("ALPACA_HOME", previous)
-		} else {
-			os.Unsetenv("ALPACA_HOME")
-		}
-	}()
+	defer cleanup()
 
 	store, err := session.NewStore()
 	if err != nil {
@@ -206,6 +194,27 @@ func runDemoChat(model string) error {
 		return fmt.Errorf("chat interface: %w", err)
 	}
 	return ui.Err()
+}
+
+// demoSandbox points ALPACA_HOME at a throwaway directory so demo sessions
+// never mix into real history. ALPACA_HOME is what config.Dir honours, so
+// this redirects the session store without threading a path anywhere. The
+// returned cleanup restores the environment and deletes the sandbox.
+func demoSandbox() (func(), error) {
+	sandbox, err := os.MkdirTemp("", "alpaca-demo-*")
+	if err != nil {
+		return nil, fmt.Errorf("create demo sandbox: %w", err)
+	}
+	previous, hadPrevious := os.LookupEnv("ALPACA_HOME")
+	os.Setenv("ALPACA_HOME", sandbox)
+	return func() {
+		if hadPrevious {
+			os.Setenv("ALPACA_HOME", previous)
+		} else {
+			os.Unsetenv("ALPACA_HOME")
+		}
+		os.RemoveAll(sandbox)
+	}, nil
 }
 
 // seedDemoSessions puts a couple of conversations in the sandbox so the saved
