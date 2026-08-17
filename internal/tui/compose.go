@@ -22,6 +22,17 @@ const composerRows = composerMinRows + 2
 // register as motion, short enough that the reply never waits on it.
 const slideDuration = 400 * time.Millisecond
 
+// alpacaHead is just the face from the splash sprite, sized for the header:
+// three terminal rows of half blocks. Same colour keys as the splash.
+var alpacaHead = []string{
+	".W....W.",
+	".WW..WW.",
+	"WWWWWWWW",
+	"WWEWWEWW",
+	"WWWWWWWW",
+	".WWMMWW.",
+}
+
 // miniAlpaca is a smaller sprite than the opening's, sized to sit above a line
 // of text without dominating it. Same colour keys as the splash.
 var miniAlpaca = []string{
@@ -118,7 +129,7 @@ func (m *Model) slide() float64 {
 // composerWidth narrows the box while it is centred and lets it fill the width
 // once docked.
 func (m *Model) composerWidth(slide float64) int {
-	full := m.width - 2
+	full := m.width - 2*uiPadX
 	narrow := clampInt(m.width*64/100, 36, 88)
 	if narrow > full {
 		narrow = full
@@ -214,14 +225,14 @@ func (m *Model) welcomeView() string {
 	body := m.welcomeBlock(m.composerWidth(0))
 
 	rows := strings.Split(body, "\n")
-	// Two rows for the header, one for the footer hint.
-	available := m.height - 3
+	// The header rows, one for the footer hint.
+	available := m.height - headerHeight - 1
 	top := (available - len(rows)) / 2
 	if top < 0 {
 		top = 0
 	}
 
-	out := []string{m.header(), ""}
+	out := append(strings.Split(m.header(), "\n"), "")
 	for i := 0; i < top; i++ {
 		out = append(out, "")
 	}
@@ -240,12 +251,12 @@ func (m *Model) welcomeView() string {
 // jumped upward before it began travelling down.
 func (m *Model) welcomeComposerTop() int {
 	rows := strings.Split(m.welcomeBlock(m.composerWidth(0)), "\n")
-	top := (m.height - 3 - len(rows)) / 2
+	top := (m.height - headerHeight - 1 - len(rows)) / 2
 	if top < 0 {
 		top = 0
 	}
-	// Two rows of header, then whatever the block stacks above the composer.
-	return 2 + top + len(strings.Split(renderSprite(miniAlpaca), "\n")) + 3
+	// The header rows, then whatever the block stacks above the composer.
+	return headerHeight + top + len(strings.Split(renderSprite(miniAlpaca), "\n")) + 3
 }
 
 // welcomeBlock is the centred stack, without the surrounding padding.
@@ -301,18 +312,22 @@ func clampInt(v, lo, hi int) int {
 // is still travelling down from the middle of the screen.
 func (m *Model) chatView() string {
 	slide := m.slide()
-	composer := strings.Split(m.renderComposer(m.composerWidth(slide)), "\n")
+	block := m.renderComposer(m.composerWidth(slide))
+	// Centred while it travels — matching where the welcome screen drew it —
+	// which settles to exactly the pane padding once the box is at full width.
+	left := maxInt(uiPadX, (m.width-lipgloss.Width(block))/2)
+	composer := strings.Split(padLines(block, left), "\n")
 
 	// The composer starts where the welcome screen left it and ends one row
 	// above the status bar. The ease is monotone, so it brakes into the dock
 	// and stops there; the clamp only guards tiny terminals.
 	docked := m.height - 1 - len(composer)
 	centred := m.welcomeComposerTop()
-	top := clampInt(lerpInt(centred, docked, slide), 2, m.height-len(composer))
+	top := clampInt(lerpInt(centred, docked, slide), headerHeight, m.height-len(composer))
 
 	// The transcript fills whatever room is left above, minus one blank row so
 	// the composer never sits flush against the last line of the conversation.
-	above := maxInt(0, top-2)
+	above := maxInt(0, top-headerHeight)
 	paneRows := maxInt(0, above-1)
 	if m.viewport.Height != paneRows {
 		m.viewport.Height = paneRows
@@ -321,7 +336,8 @@ func (m *Model) chatView() string {
 	}
 
 	out := make([]string, 0, m.height)
-	out = append(out, m.header(), "")
+	out = append(out, strings.Split(m.header(), "\n")...)
+	out = append(out, "")
 	if paneRows > 0 {
 		// The viewport returns only the lines it has, not a full pane, so the
 		// gap has to be filled here. Without this the composer lands directly
