@@ -70,8 +70,7 @@ func (m *Model) composeOutgoing(text string) string {
 			parts = append(parts, a.content)
 		}
 	}
-	m.attachments = nil
-	m.attachFocus = -1
+	m.discardAttachments()
 	return strings.Join(parts, "\n\n")
 }
 
@@ -295,6 +294,7 @@ func (m *Model) quit() tea.Cmd {
 	if m.streaming {
 		m.stopStream()
 	}
+	m.discardAttachments()
 	_ = m.store.Save(m.sess)
 	m.rememberModel()
 	// ctrl+c works from anywhere — including the opening, while the

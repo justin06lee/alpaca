@@ -106,6 +106,8 @@ func helpContent() string {
 		{"", ""},
 		{"big paste", "staged as a chip — ↑ focuses it, enter views it"},
 		{"image path", "drop a file on the terminal to attach a preview"},
+		{"ctrl+v", "paste from the OS clipboard, images included"},
+		{"o", "in an image preview: open it full-res in the viewer"},
 		{"click a bubble", "read that message · e edits it · ←/→ its ✦ branches"},
 		{"drag to select", "highlight any text on screen; copies on release"},
 		{"", ""},

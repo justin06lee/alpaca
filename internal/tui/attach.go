@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"errors"
 	"fmt"
 	"image"
 	_ "image/gif"  // registered so pasted .gif paths decode
@@ -42,12 +43,30 @@ type attachment struct {
 	lines   int    // text only
 	imgW    int
 	imgH    int
+	temp    bool // the image lives in a temp file this app made (clipboard)
 
 	// preview caches the half-block rendering, which costs a full decode of
 	// the source image to build.
 	preview     string
 	previewCols int
 	previewRows int
+}
+
+// cleanup deletes the temp file a clipboard image was written into. Dropped
+// files are the user's own and are never touched.
+func (a attachment) cleanup() {
+	if a.temp {
+		os.Remove(a.content)
+	}
+}
+
+// discardAttachments empties the chip row, cleaning up what it owned.
+func (m *Model) discardAttachments() {
+	for _, a := range m.attachments {
+		a.cleanup()
+	}
+	m.attachments = nil
+	m.attachFocus = -1
 }
 
 // label is the chip text. Numbering restarts as chips are removed, and the
@@ -86,6 +105,36 @@ func (m *Model) handlePaste(text string) tea.Cmd {
 
 	m.input.InsertString(text)
 	return nil
+}
+
+// attachClipboard is ctrl+v: stage whatever the OS clipboard actually holds.
+// An image becomes an image chip — the terminal's own paste can never deliver
+// one, so the OS is asked directly — and text takes the ordinary paste path,
+// chips and all. The keystroke is one honest "paste this" either way.
+func (m *Model) attachClipboard() tea.Cmd {
+	path, err := clipboardImage()
+	switch {
+	case err == nil:
+		att, err := newImageAttachment(path)
+		if err != nil {
+			os.Remove(path)
+			return m.setStatus("could not read clipboard image: "+err.Error(), true)
+		}
+		att.temp = true
+		att.name = fmt.Sprintf("clipboard %d×%d", att.imgW, att.imgH)
+		m.attachments = append(m.attachments, att)
+		return m.setStatus("clipboard image attached — ↑ then enter to preview", false)
+
+	case !errors.Is(err, errNoClipImage):
+		// A named problem — a missing tool, a failed temp file — not just an
+		// imageless clipboard.
+		return m.setStatus(err.Error(), true)
+	}
+
+	if text, err := clipboard.ReadAll(); err == nil && text != "" {
+		return m.handlePaste(text)
+	}
+	return m.setStatus("nothing on the clipboard", false)
 }
 
 // attachImages recognises a paste that is nothing but image paths — which is
@@ -213,6 +262,7 @@ func (m *Model) handleChipKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyBackspace, tea.KeyDelete:
+		m.attachments[m.attachFocus].cleanup()
 		m.attachments = append(m.attachments[:m.attachFocus], m.attachments[m.attachFocus+1:]...)
 		if len(m.attachments) == 0 {
 			m.attachFocus = -1
@@ -268,6 +318,17 @@ func (m *Model) handlePopupKey(msg tea.KeyMsg) tea.Cmd {
 	// e pulls the viewed prompt back into the composer to branch from.
 	if msg.String() == "e" && m.viewMsg >= 0 {
 		return m.editMessage(m.viewMsg)
+	}
+
+	// o hands the previewed image to the system viewer: the half-block
+	// preview shows what the image is, the real thing shows what's in it.
+	if msg.String() == "o" && m.viewAttach >= 0 && m.viewAttach < len(m.attachments) {
+		if a := m.attachments[m.viewAttach]; a.kind == attachImage {
+			if err := openInViewer(a.content); err != nil {
+				return m.setStatus("could not open image: "+err.Error(), true)
+			}
+			return m.setStatus("opened in the system viewer", false)
+		}
 	}
 
 	if msg.String() == "y" || msg.String() == "c" {
@@ -341,7 +402,7 @@ func (m *Model) attachmentPopover(base string) string {
 	if a.kind == attachImage {
 		title := fmt.Sprintf("image #%d · %s · %d×%d", m.viewAttach+1, a.name, a.imgW, a.imgH)
 		body := strings.Split(m.imagePreview(a, inner, rows), "\n")
-		return m.floatPopup(base, title, body, "esc to close", outer)
+		return m.floatPopup(base, title, body, "o open full-res · esc close", outer)
 	}
 
 	lines := strings.Split(a.content, "\n")
