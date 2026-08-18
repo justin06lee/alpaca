@@ -81,8 +81,7 @@ func (m *Model) handleChatKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		if len(m.attachments) > 0 {
-			m.attachments = nil
-			m.attachFocus = -1
+			m.discardAttachments()
 			return m, m.setStatus("attachments discarded", false)
 		}
 		return m, nil
@@ -107,6 +106,12 @@ func (m *Model) handleChatKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case tea.KeyCtrlJ:
 		m.input.InsertString("\n")
 		return m, nil
+
+	// The terminal's own paste (cmd+v) arrives as a bracketed paste of text.
+	// ctrl+v reads the OS clipboard instead, which is the only route an image
+	// can arrive by — a terminal paste never carries one.
+	case tea.KeyCtrlV:
+		return m, m.attachClipboard()
 
 	case tea.KeyCtrlN:
 		return m, m.newSession()

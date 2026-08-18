@@ -145,7 +145,7 @@ func TestHelpFloatsOverTheChat(t *testing.T) {
 	defer lipgloss.SetColorProfile(old)
 
 	m := panelModel(t)
-	m.Update(tea.WindowSizeMsg{Width: 100, Height: 42})
+	m.Update(tea.WindowSizeMsg{Width: 100, Height: 44})
 	m.showHelp = true
 
 	view := m.View()

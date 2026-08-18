@@ -239,6 +239,7 @@ network.
 | `ctrl+r` | Regenerate the last reply |
 | `ctrl+y` | Copy the last reply |
 | `ctrl+g` | Copy the last code block — or click `⧉ copy` on any block |
+| `ctrl+v` | Paste from the OS clipboard — images included |
 | mouse wheel, `pgup` / `pgdn`, `ctrl+u` / `ctrl+d` | Scroll |
 | `?` | All keys |
 | `ctrl+c` | Quit |
@@ -253,12 +254,18 @@ scrolls inside its frame past that — the cursor stays in view either way.
 Pasting more than a few lines stages the paste as a chip above the input —
 `[#1 · 42 lines pasted]` — instead of flooding the composer; the full text
 still travels with the message when you send. Dropping an image file onto the
-terminal stages it the same way. Press `↑` from the top of the input to focus
-the chips, `←`/`→` to move between them, `enter` to open one in a popup —
-pasted text scrollable in full, images downsampled to coloured terminal cells
-— and `backspace` to remove one. Image previews are local only: the chat
-connection is text-only, so the model is told an image was attached but never
-receives it.
+terminal stages it the same way, and so does `ctrl+v` with an image on the
+clipboard — a screenshot, something copied from a browser. The terminal's own
+paste (`cmd+v`) only ever transmits text, so `ctrl+v` asks the OS clipboard
+directly: an image becomes an image chip, and anything else pastes as normal.
+On Linux this needs `wl-clipboard` (Wayland) or `xclip` (X11).
+
+Press `↑` from the top of the input to focus the chips, `←`/`→` to move
+between them, `enter` to open one in a popup — pasted text scrollable in full,
+images downsampled to coloured terminal cells, with `o` opening the image
+full-res in your system viewer — and `backspace` to remove one. Image
+previews are local only: the chat connection is text-only, so the model is
+told an image was attached but never receives it.
 
 Replies render their fenced code in framed blocks: a header rule names the
 language and carries a `⧉ copy` control you can click with the mouse — it
