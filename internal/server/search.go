@@ -129,11 +129,21 @@ func (s *Server) resolveToolCalls(ctx context.Context, req *ollama.ChatRequest, 
 	return rounds
 }
 
-// prepareTools attaches the search tool when the gateway has a provider.
-func (s *Server) prepareTools(req *ollama.ChatRequest) {
-	if s.searchEnabled() {
-		req.Tools = append(req.Tools, searchTool())
+// prepareTools attaches the search tool when the gateway has a provider AND
+// the target model advertises the "tools" capability. Attaching tools to a
+// model that cannot use them makes Ollama reject the request outright ("does
+// not support tools"); models that do support them but are too small to call
+// reliably would otherwise emit the raw tool-call JSON as prose. Gating on the
+// capability keeps both failure modes off the screen — an unsupported model
+// simply answers directly instead.
+func (s *Server) prepareTools(ctx context.Context, req *ollama.ChatRequest) {
+	if !s.searchEnabled() {
+		return
 	}
+	if !s.modelSupportsTools(ctx, req.Model) {
+		return
+	}
+	req.Tools = append(req.Tools, searchTool())
 }
 
 // maxRounds is how many tool passes are allowed before the model is made to

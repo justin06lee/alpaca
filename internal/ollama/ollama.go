@@ -293,6 +293,26 @@ func (c *Client) Models(ctx context.Context) ([]Model, error) {
 	return payload.Models, nil
 }
 
+// Capabilities reports what a model can do — values like "completion",
+// "tools", "vision", "thinking" — via /api/show. Ollama rejects a chat
+// request that carries tools for a model whose template has no tool support,
+// so callers check this before attaching any.
+func (c *Client) Capabilities(ctx context.Context, model string) ([]string, error) {
+	resp, err := c.post(ctx, "/api/show", map[string]any{"model": model})
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	var payload struct {
+		Capabilities []string `json:"capabilities"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		return nil, fmt.Errorf("decode model capabilities: %w", err)
+	}
+	return payload.Capabilities, nil
+}
+
 // Embed produces embeddings for one or more inputs.
 func (c *Client) Embed(ctx context.Context, model string, input []string) ([][]float64, error) {
 	resp, err := c.post(ctx, "/api/embed", map[string]any{

@@ -53,6 +53,13 @@ func scriptedDaemon(t *testing.T, turns ...string) (http.HandlerFunc, *[]map[str
 	var seen []map[string]any
 	var n atomic.Int32
 	return func(w http.ResponseWriter, r *http.Request) {
+		// Tool attachment is gated on the model advertising the "tools"
+		// capability, which the gateway learns from /api/show. The scripted
+		// model supports tools; a model that does not is exercised separately.
+		if r.URL.Path == "/api/show" {
+			fmt.Fprint(w, `{"capabilities":["completion","tools"]}`)
+			return
+		}
 		if r.URL.Path != "/api/chat" {
 			http.NotFound(w, r)
 			return
@@ -69,6 +76,42 @@ func scriptedDaemon(t *testing.T, turns ...string) (http.HandlerFunc, *[]map[str
 		}
 		fmt.Fprint(w, turns[i])
 	}, &seen
+}
+
+// TestSearchToolSkippedWhenModelLacksToolCapability guards the qwen case: a
+// model whose template has no tool support must not have tools attached, even
+// when the gateway has a search provider. Sending tools to such a model makes
+// Ollama reject the whole request ("does not support tools"); the gateway must
+// silently let it answer instead.
+func TestSearchToolSkippedWhenModelLacksToolCapability(t *testing.T) {
+	var seen []map[string]any
+	daemon := func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/show" {
+			fmt.Fprint(w, `{"capabilities":["completion","vision"]}`) // no "tools"
+			return
+		}
+		if r.URL.Path != "/api/chat" {
+			http.NotFound(w, r)
+			return
+		}
+		var body map[string]any
+		json.NewDecoder(r.Body).Decode(&body)
+		seen = append(seen, body)
+		fmt.Fprint(w, answerTurn("hi"))
+	}
+
+	base := newSearchGateway(t, newStubSearch(), daemon)
+	resp := do(t, http.MethodPost, base+"/v1/chat/completions", testKey,
+		`{"model":"m","messages":[{"role":"user","content":"hello"}]}`)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d", resp.StatusCode)
+	}
+	if len(seen) == 0 {
+		t.Fatal("no chat request reached the daemon")
+	}
+	if _, hasTools := seen[0]["tools"]; hasTools {
+		t.Errorf("tools forwarded to a model without the tools capability")
+	}
 }
 
 // toolCallTurn is a daemon reply asking for a web search.

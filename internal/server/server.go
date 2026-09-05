@@ -7,10 +7,12 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"log/slog"
 	"net/http"
 	"runtime/debug"
+	"sync"
 	"time"
 
 	"github.com/justin06lee/alpaca/internal/ollama"
@@ -46,6 +48,13 @@ type Options struct {
 type Server struct {
 	opts Options
 	log  *slog.Logger
+
+	// toolCapable caches, per model, whether it advertises the "tools"
+	// capability. A model's template does not change under a running daemon,
+	// so one lookup per model is enough and keeps the chat path from paying an
+	// /api/show round-trip on every request.
+	capMu       sync.RWMutex
+	toolCapable map[string]bool
 }
 
 // New builds a gateway. A nil Ollama client is a programming error and fails
@@ -58,7 +67,41 @@ func New(opts Options) *Server {
 	if opts.Logger == nil {
 		opts.Logger = slog.Default()
 	}
-	return &Server{opts: opts, log: opts.Logger}
+	return &Server{opts: opts, log: opts.Logger, toolCapable: map[string]bool{}}
+}
+
+// modelSupportsTools reports whether the model advertises the "tools"
+// capability. The result is cached per model. On a lookup failure it returns
+// false: the safe default is to send no tools, since attaching them to a model
+// that cannot use them makes Ollama reject the whole request.
+func (s *Server) modelSupportsTools(ctx context.Context, model string) bool {
+	s.capMu.RLock()
+	cached, ok := s.toolCapable[model]
+	s.capMu.RUnlock()
+	if ok {
+		return cached
+	}
+
+	caps, err := s.opts.Ollama.Capabilities(ctx, model)
+	if err != nil {
+		// Do not cache a failure — the daemon may be momentarily unreachable,
+		// and the next request should try again rather than be stuck at false.
+		s.log.Warn("tool capability lookup failed", "model", model, "err", err)
+		return false
+	}
+
+	supported := false
+	for _, c := range caps {
+		if c == "tools" {
+			supported = true
+			break
+		}
+	}
+
+	s.capMu.Lock()
+	s.toolCapable[model] = supported
+	s.capMu.Unlock()
+	return supported
 }
 
 // Handler returns the fully wired HTTP handler.

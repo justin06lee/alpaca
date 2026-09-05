@@ -121,6 +121,11 @@ func (g *grid) blit(rows []string, atX, atY int, key rune) {
 
 // wordmark renders ALPACA with a one-pixel drop shadow, giving the letters an
 // extruded edge without needing a separate isometric font.
+//
+// The shadow is cast only onto exterior background — the down-right edge of
+// each stroke — never into the enclosed counters of A, P and C. Offsetting a
+// full copy of the glyph (the naive approach) fills those holes with shadow
+// pixels, which at 5x5 reads as muddy noise rather than an extrude.
 func wordmark() []string {
 	const word = "ALPACA"
 	const glyphW, glyphH, gap = 5, 5, 2
@@ -128,16 +133,76 @@ func wordmark() []string {
 	width := len(word)*(glyphW+gap) - gap + 1 // +1 for the shadow overhang
 	g := newGrid(width, glyphH+1)
 
-	// Shadow first, offset down-right, then the face on top of it.
-	for pass, key := range []rune{pxDrop, pxText} {
-		offset := 1 - pass // shadow at +1, face at 0
-		x := 0
-		for _, letter := range word {
-			g.blit(glyphs[letter], x+offset, offset, key)
-			x += glyphW + gap
+	// Faces first, at offset 0.
+	x := 0
+	for _, letter := range word {
+		g.blit(glyphs[letter], x, 0, pxText)
+		x += glyphW + gap
+	}
+
+	// Mark exterior background so counters (holes enclosed by strokes) can be
+	// told apart from the space around the letters: flood-fill empty cells
+	// reachable from the border. Anything left unmarked is a counter.
+	exterior := g.floodExterior()
+
+	// Cast a one-pixel shadow onto exterior cells whose up-left neighbour is a
+	// face pixel — i.e. the down-right silhouette edge. Counters stay clean.
+	for y := 0; y < g.h; y++ {
+		for x := 0; x < g.w; x++ {
+			if g.cells[y][x] != pxEmpty || !exterior[y][x] {
+				continue
+			}
+			if g.at(x-1, y-1) == pxText {
+				g.set(x, y, pxDrop)
+			}
 		}
 	}
 	return g.rows()
+}
+
+// at reads a cell, treating anything off the grid as transparent.
+func (g *grid) at(x, y int) rune {
+	if x < 0 || y < 0 || x >= g.w || y >= g.h {
+		return pxEmpty
+	}
+	return g.cells[y][x]
+}
+
+// floodExterior returns a mask of empty cells reachable from the border by
+// 4-connected steps. Empty cells not in the mask are enclosed counters.
+func (g *grid) floodExterior() [][]bool {
+	seen := make([][]bool, g.h)
+	for y := range seen {
+		seen[y] = make([]bool, g.w)
+	}
+	var stack [][2]int
+	push := func(x, y int) {
+		if x < 0 || y < 0 || x >= g.w || y >= g.h {
+			return
+		}
+		if seen[y][x] || g.cells[y][x] != pxEmpty {
+			return
+		}
+		seen[y][x] = true
+		stack = append(stack, [2]int{x, y})
+	}
+	for x := 0; x < g.w; x++ {
+		push(x, 0)
+		push(x, g.h-1)
+	}
+	for y := 0; y < g.h; y++ {
+		push(0, y)
+		push(g.w-1, y)
+	}
+	for len(stack) > 0 {
+		c := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+		push(c[0]-1, c[1])
+		push(c[0]+1, c[1])
+		push(c[0], c[1]-1)
+		push(c[0], c[1]+1)
+	}
+	return seen
 }
 
 func (g *grid) rows() []string {

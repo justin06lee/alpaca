@@ -287,8 +287,9 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// The model can only search if the gateway was started with a provider.
-	s.prepareTools(&ollamaReq)
+	// The model can only search if the gateway was started with a provider and
+	// the model itself advertises tool support.
+	s.prepareTools(r.Context(), &ollamaReq)
 
 	if req.Stream {
 		s.streamChat(w, r, req, ollamaReq)
